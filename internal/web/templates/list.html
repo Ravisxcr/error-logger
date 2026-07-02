@@ -1,0 +1,41 @@
+{{define "list"}}
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>error-logger</title>
+<meta http-equiv="refresh" content="5">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+	<h1>error-logger</h1>
+	<span class="count">{{.Count}} captured</span>
+</header>
+<main>
+{{if .Events}}
+<table>
+	<tr>
+		<th>Time</th>
+		<th>Level</th>
+		<th>Project</th>
+		<th>Kind</th>
+		<th>Summary</th>
+	</tr>
+	{{range .Events}}
+	<tr>
+		<td>{{.Time}}</td>
+		<td><span class="badge level-{{.Level}}">{{.Level}}</span></td>
+		<td>{{.ProjectID}}</td>
+		<td>{{.Kind}}</td>
+		<td><a href="/events/{{.ID}}">{{.Summary}}</a></td>
+	</tr>
+	{{end}}
+</table>
+{{else}}
+<p class="empty">No events captured yet. Point your Sentry SDK's DSN at this server and trigger an error.</p>
+{{end}}
+</main>
+</body>
+</html>
+{{end}}

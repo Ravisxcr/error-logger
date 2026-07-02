@@ -27,6 +27,12 @@ go.work.sum
 # env file
 .env
 
+# captured events (runtime output)
+/data/
+
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+demo/
+.venv/
+
