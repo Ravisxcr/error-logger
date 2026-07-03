@@ -1,3 +1,3 @@
-module github.com/ravi/error-logger
+module github.com/ravisxcr/error-logger
 
 go 1.26.4

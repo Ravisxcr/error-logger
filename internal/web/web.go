@@ -10,8 +10,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ravi/error-logger/internal/sentryevent"
-	"github.com/ravi/error-logger/internal/store"
+	"github.com/ravisxcr/error-logger/internal/sentryevent"
+	"github.com/ravisxcr/error-logger/internal/store"
 )
 
 //go:embed templates

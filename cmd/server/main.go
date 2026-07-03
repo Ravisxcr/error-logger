@@ -10,10 +10,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/ravi/error-logger/internal/console"
-	"github.com/ravi/error-logger/internal/ingest"
-	"github.com/ravi/error-logger/internal/store"
-	"github.com/ravi/error-logger/internal/web"
+	"github.com/ravisxcr/error-logger/internal/console"
+	"github.com/ravisxcr/error-logger/internal/ingest"
+	"github.com/ravisxcr/error-logger/internal/store"
+	"github.com/ravisxcr/error-logger/internal/web"
 )
 
 func main() {

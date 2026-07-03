@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ravi/error-logger/internal/envelope"
-	"github.com/ravi/error-logger/internal/sentryevent"
-	"github.com/ravi/error-logger/internal/store"
+	"github.com/ravisxcr/error-logger/internal/envelope"
+	"github.com/ravisxcr/error-logger/internal/sentryevent"
+	"github.com/ravisxcr/error-logger/internal/store"
 )
 
 // Printer is anything that can render a captured event as it arrives

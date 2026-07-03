@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ravi/error-logger/internal/sentryevent"
+	"github.com/ravisxcr/error-logger/internal/sentryevent"
 )
 
 // Captured is one stored event, either a full error/message event or a

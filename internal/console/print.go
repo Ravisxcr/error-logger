@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/ravi/error-logger/internal/store"
+	"github.com/ravisxcr/error-logger/internal/store"
 )
 
 const (
