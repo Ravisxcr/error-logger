@@ -65,8 +65,8 @@ func Print(w io.Writer, c store.Captured, isNew bool) {
 		case e.Exception != nil && len(e.Exception.Values) > 0:
 			exc := e.Exception.Values[len(e.Exception.Values)-1]
 			summary = fmt.Sprintf("%s: %s", exc.Type, exc.Value)
-		case e.Message != nil && e.Message.Text() != "":
-			summary = e.Message.Text()
+		case e.MessageText() != "":
+			summary = e.MessageText()
 		case e.Transaction != "":
 			summary = e.Transaction
 		}
@@ -106,10 +106,31 @@ func Print(w io.Writer, c store.Captured, isNew bool) {
 				}
 			}
 		}
-	} else if e.Message != nil {
-		fmt.Fprintf(w, "  %s\n", e.Message.Text())
+	} else if msg := e.MessageText(); msg != "" {
+		fmt.Fprintf(w, "  %s\n", msg)
 	} else if e.Transaction != "" {
 		fmt.Fprintf(w, "  %s\n", e.Transaction)
+	}
+
+	if e.Breadcrumbs != nil && len(e.Breadcrumbs.Values) > 0 {
+		crumbs := e.Breadcrumbs.Values
+		start := 0
+		if len(crumbs) > 8 {
+			start = len(crumbs) - 8
+			fmt.Fprintf(w, "  %sBreadcrumbs (%d earlier omitted):%s\n", gray, start, reset)
+		} else {
+			fmt.Fprintf(w, "  %sBreadcrumbs:%s\n", gray, reset)
+		}
+		for _, b := range crumbs[start:] {
+			bts := b.Time().Local().Format("15:04:05.000")
+			blc := levelColor(b.Level)
+			category := b.Category
+			if category == "" {
+				category = b.Type
+			}
+			fmt.Fprintf(w, "    %s%s%s %s%-7s%s %s%s%s: %s\n",
+				dim, bts, reset, blc, strings.ToUpper(b.Level), reset, gray, category, reset, b.Message)
+		}
 	}
 
 	if len(e.Tags) > 0 {

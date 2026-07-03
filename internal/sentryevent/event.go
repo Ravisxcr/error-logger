@@ -6,7 +6,9 @@ package sentryevent
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Event is a single Sentry "error" or "message" event, as sent inside an
@@ -24,6 +26,7 @@ type Event struct {
 	Environment string          `json:"environment,omitempty"`
 
 	Message     *Message               `json:"message,omitempty"`
+	LogEntry    *Message               `json:"logentry,omitempty"`
 	Exception   *ExceptionContainer    `json:"exception,omitempty"`
 	Breadcrumbs *BreadcrumbContainer   `json:"breadcrumbs,omitempty"`
 	Threads     json.RawMessage        `json:"threads,omitempty"`
@@ -70,6 +73,19 @@ func (m *Message) Text() string {
 		return m.Formatted
 	}
 	return m.Message
+}
+
+// MessageText returns the event's message text, checking both wire encodings
+// Sentry SDKs use for it: capture_message sends "message", while the stdlib
+// LoggingIntegration sends "logentry".
+func (e *Event) MessageText() string {
+	if e == nil {
+		return ""
+	}
+	if e.Message != nil && e.Message.Text() != "" {
+		return e.Message.Text()
+	}
+	return e.LogEntry.Text()
 }
 
 // TagSet handles Sentry's two tag encodings: an object map, or an array of
@@ -145,6 +161,26 @@ type Breadcrumb struct {
 	Data      json.RawMessage `json:"data,omitempty"`
 }
 
+// Time parses the breadcrumb's timestamp, which Sentry SDKs send as either
+// an RFC3339 string or a float of seconds since the epoch. The zero Time is
+// returned if it's absent or unparseable.
+func (b *Breadcrumb) Time() time.Time {
+	if b == nil || len(b.Timestamp) == 0 {
+		return time.Time{}
+	}
+	var s string
+	if err := json.Unmarshal(b.Timestamp, &s); err == nil {
+		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+			return t
+		}
+		return time.Time{}
+	}
+	if f, err := strconv.ParseFloat(string(b.Timestamp), 64); err == nil {
+		return time.Unix(0, int64(f*float64(time.Second)))
+	}
+	return time.Time{}
+}
+
 type Request struct {
 	URL         string          `json:"url,omitempty"`
 	Method      string          `json:"method,omitempty"`
@@ -185,8 +221,8 @@ func (e *Event) GroupKey() string {
 		}
 		return fmt.Sprintf("exc:%s\x00%s", exc.Type, exc.Value)
 	}
-	if e.Message != nil && e.Message.Text() != "" {
-		return "msg:" + e.Logger + "\x00" + e.Message.Text()
+	if msg := e.MessageText(); msg != "" {
+		return "msg:" + e.Logger + "\x00" + msg
 	}
 	if e.Transaction != "" {
 		return "txn:" + e.Transaction

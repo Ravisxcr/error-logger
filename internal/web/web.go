@@ -234,14 +234,14 @@ func (h *Handler) handleDetail(w http.ResponseWriter, r *http.Request) {
 				}
 				dv.Exceptions = append(dv.Exceptions, ev)
 			}
-		} else if e.Message != nil {
-			dv.Message = e.Message.Text()
+		} else if msg := e.MessageText(); msg != "" {
+			dv.Message = msg
 		}
 
 		if e.Breadcrumbs != nil {
 			for _, b := range e.Breadcrumbs.Values {
 				dv.Breadcrumbs = append(dv.Breadcrumbs, breadcrumbView{
-					Time:     string(b.Timestamp),
+					Time:     b.Time().Local().Format("15:04:05"),
 					Category: b.Category,
 					Message:  b.Message,
 				})
@@ -405,8 +405,8 @@ func summarize(c store.Captured) eventRow {
 	case c.Event.Exception != nil && len(c.Event.Exception.Values) > 0:
 		exc := c.Event.Exception.Values[len(c.Event.Exception.Values)-1]
 		row.Summary = fmt.Sprintf("%s: %s", exc.Type, exc.Value)
-	case c.Event.Message != nil && c.Event.Message.Text() != "":
-		row.Summary = c.Event.Message.Text()
+	case c.Event.MessageText() != "":
+		row.Summary = c.Event.MessageText()
 	case c.Event.Transaction != "":
 		row.Summary = c.Event.Transaction
 	}
