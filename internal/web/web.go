@@ -37,6 +37,10 @@ var (
 	detailTmpl   = pageTemplate("detail.html")
 )
 
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
+
 // Page is the data every template execution starts from: shared chrome
 // (title, back link, subtitle, refresh) plus the page-specific Data payload.
 type Page struct {
@@ -52,45 +56,11 @@ type Handler struct {
 	Store *store.Store
 }
 
-func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /{$}", h.handleProjects)
-	mux.HandleFunc("GET /projects/{project_id}", h.handleProjectIssues)
-	mux.HandleFunc("POST /projects/{project_id}/delete", h.handleDeleteProject)
-	mux.HandleFunc("GET /events/{id}", h.handleDetail)
-	mux.HandleFunc("POST /events/{id}/delete", h.handleDeleteEvent)
-	mux.Handle("GET /static/", http.FileServerFS(staticFS))
-}
-
 type projectRow struct {
 	ProjectID string
 	Issues    int
 	Events    int
 	LastSeen  string
-}
-
-func (h *Handler) handleProjects(writer http.ResponseWriter, request *http.Request) {
-	summaries := h.Store.Projects()
-	rows := make([]projectRow, len(summaries))
-	for index, summary := range summaries {
-		rows[index] = projectRow{
-			ProjectID: summary.ProjectID,
-			Issues:    summary.Issues,
-			Events:    summary.Events,
-			LastSeen:  summary.LastSeen.Local().Format("2006-01-02 15:04:05"),
-		}
-	}
-
-	page := Page{
-		Title:       "error-logger",
-		Subtitle:    pluralize(len(rows), "project"),
-		AutoRefresh: true,
-		Data:        struct{ Projects []projectRow }{Projects: rows},
-	}
-
-	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := projectsTmpl.ExecuteTemplate(writer, "layout", page); err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
-	}
 }
 
 type eventRow struct {
@@ -101,29 +71,6 @@ type eventRow struct {
 	Kind      string
 	Summary   string
 	Count     int
-}
-
-func (h *Handler) handleProjectIssues(writer http.ResponseWriter, request *http.Request) {
-	projectID := request.PathValue("project_id")
-	captured := h.Store.ListByProject(projectID)
-	rows := make([]eventRow, len(captured))
-	for index, capturedEvent := range captured {
-		rows[index] = summarize(capturedEvent)
-	}
-
-	page := Page{
-		Title:       fmt.Sprintf("%s — error-logger", projectID),
-		Subtitle:    fmt.Sprintf("%s in %s", pluralize(len(rows), "issue"), projectID),
-		BackHref:    "/",
-		BackLabel:   "error-logger",
-		AutoRefresh: true,
-		Data:        struct{ Events []eventRow }{Events: rows},
-	}
-
-	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := listTmpl.ExecuteTemplate(writer, "layout", page); err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
-	}
 }
 
 type codeLine struct {
@@ -192,6 +139,67 @@ type detailView struct {
 	RawJSON string
 }
 
+// -----------------------------------------------------------------------------
+// Handlers
+// -----------------------------------------------------------------------------
+
+func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /{$}", h.handleProjects)
+	mux.HandleFunc("GET /projects/{project_id}", h.handleProjectIssues)
+	mux.HandleFunc("POST /projects/{project_id}/delete", h.handleDeleteProject)
+	mux.HandleFunc("GET /events/{id}", h.handleDetail)
+	mux.HandleFunc("POST /events/{id}/delete", h.handleDeleteEvent)
+	mux.Handle("GET /static/", http.FileServerFS(staticFS))
+}
+
+func (h *Handler) handleProjects(writer http.ResponseWriter, request *http.Request) {
+	summaries := h.Store.Projects()
+	rows := make([]projectRow, len(summaries))
+	for index, summary := range summaries {
+		rows[index] = projectRow{
+			ProjectID: summary.ProjectID,
+			Issues:    summary.Issues,
+			Events:    summary.Events,
+			LastSeen:  summary.LastSeen.Local().Format("2006-01-02 15:04:05"),
+		}
+	}
+
+	page := Page{
+		Title:       "error-logger",
+		Subtitle:    pluralize(len(rows), "project"),
+		AutoRefresh: true,
+		Data:        struct{ Projects []projectRow }{Projects: rows},
+	}
+
+	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := projectsTmpl.ExecuteTemplate(writer, "layout", page); err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) handleProjectIssues(writer http.ResponseWriter, request *http.Request) {
+	projectID := request.PathValue("project_id")
+	captured := h.Store.ListByProject(projectID)
+	rows := make([]eventRow, len(captured))
+	for index, capturedEvent := range captured {
+		rows[index] = summarize(capturedEvent)
+	}
+
+	page := Page{
+		Title:       fmt.Sprintf("%s — error-logger", projectID),
+		Subtitle:    fmt.Sprintf("%s in %s", pluralize(len(rows), "issue"), projectID),
+		BackHref:    "/",
+		BackLabel:   "error-logger",
+		AutoRefresh: true,
+		Data:        struct{ Events []eventRow }{Events: rows},
+	}
+
+	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := listTmpl.ExecuteTemplate(writer, "layout", page); err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 func (h *Handler) handleDetail(writer http.ResponseWriter, request *http.Request) {
 	id := request.PathValue("id")
 	capturedEvent, ok := h.Store.Get(id)
@@ -214,6 +222,38 @@ func (h *Handler) handleDetail(writer http.ResponseWriter, request *http.Request
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
 	}
 }
+
+// handleDeleteEvent deletes a single issue (and, since grouped occurrences
+// share an ID, its full occurrence history) and returns to the project's
+// issue list.
+func (h *Handler) handleDeleteEvent(writer http.ResponseWriter, request *http.Request) {
+	id := request.PathValue("id")
+	capturedEvent, ok := h.Store.Get(id)
+	if !ok {
+		http.NotFound(writer, request)
+		return
+	}
+	if _, err := h.Store.DeleteEvent(id); err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(writer, request, "/projects/"+capturedEvent.ProjectID, http.StatusSeeOther)
+}
+
+// handleDeleteProject deletes every captured row for a project and returns
+// to the project overview.
+func (h *Handler) handleDeleteProject(writer http.ResponseWriter, request *http.Request) {
+	projectID := request.PathValue("project_id")
+	if _, err := h.Store.DeleteProject(projectID); err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(writer, request, "/", http.StatusSeeOther)
+}
+
+// -----------------------------------------------------------------------------
+// View Builders
+// -----------------------------------------------------------------------------
 
 func buildDetailView(capturedEvent store.Captured) detailView {
 	detailViewData := detailView{
@@ -347,34 +387,6 @@ func buildModules(eventData *sentryevent.Event) []kv {
 	return modulesList
 }
 
-// handleDeleteEvent deletes a single issue (and, since grouped occurrences
-// share an ID, its full occurrence history) and returns to the project's
-// issue list.
-func (h *Handler) handleDeleteEvent(writer http.ResponseWriter, request *http.Request) {
-	id := request.PathValue("id")
-	capturedEvent, ok := h.Store.Get(id)
-	if !ok {
-		http.NotFound(writer, request)
-		return
-	}
-	if _, err := h.Store.DeleteEvent(id); err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(writer, request, "/projects/"+capturedEvent.ProjectID, http.StatusSeeOther)
-}
-
-// handleDeleteProject deletes every captured row for a project and returns
-// to the project overview.
-func (h *Handler) handleDeleteProject(writer http.ResponseWriter, request *http.Request) {
-	projectID := request.PathValue("project_id")
-	if _, err := h.Store.DeleteProject(projectID); err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(writer, request, "/", http.StatusSeeOther)
-}
-
 func buildFrame(frameData sentryevent.Frame) frameView {
 	locationPath := frameData.Filename
 	if locationPath == "" {
@@ -412,6 +424,10 @@ func buildFrame(frameData sentryevent.Frame) frameView {
 
 	return frameViewData
 }
+
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
 
 // toKV renders a JSON object as a sorted, display-ready key/value list.
 func toKV(dataMap map[string]interface{}) []kv {

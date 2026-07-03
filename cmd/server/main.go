@@ -49,8 +49,7 @@ func main() {
 	logger.Printf("example DSN:    http://public@localhost%s/1", *listenAddr)
 	logger.Printf("events log:     %s/events.jsonl", *dataDir)
 
-	if err := http.ListenAndServe(*listenAddr, mux);
-	err != nil {
+	if err := http.ListenAndServe(*listenAddr, mux); err != nil {
 		logger.Fatalf("server: %v", err)
 	}
 }
