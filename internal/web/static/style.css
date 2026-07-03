@@ -12,6 +12,20 @@
 	--debug: #7d8492;
 }
 
+[data-theme="light"] {
+	color-scheme: light;
+	--bg: #f6f7f9;
+	--panel: #ffffff;
+	--border: #e1e4ea;
+	--text: #1c2027;
+	--muted: #667085;
+	--accent: #2563eb;
+	--error: #c22c33;
+	--warning: #a15c07;
+	--info: #2563eb;
+	--debug: #667085;
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -151,7 +165,43 @@ pre.raw {
 	font-size: 12px;
 }
 
-.back { color: var(--muted); }
+.back {
+	color: var(--muted);
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.icon {
+	display: inline-block;
+	vertical-align: middle;
+	flex: 0 0 auto;
+}
+
+.theme-toggle {
+	margin-left: auto;
+	align-self: center;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	background: transparent;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	color: var(--muted);
+	cursor: pointer;
+}
+
+.theme-toggle:hover {
+	color: var(--text);
+	border-color: var(--accent);
+}
+
+.theme-toggle .icon-moon { display: none; }
+[data-theme="light"] .theme-toggle .icon-sun { display: none; }
+[data-theme="light"] .theme-toggle .icon-moon { display: inline-flex; }
 
 .meta-line {
 	margin-bottom: 6px;

@@ -1,0 +1,12 @@
+{{define "header"}}
+<header>
+	<h1>
+	{{if .BackHref}}<a class="back" href="{{.BackHref}}">{{template "icon-arrow-left"}}<span>{{.BackLabel}}</span></a>{{else}}{{.Title}}{{end}}
+	</h1>
+	{{if .Subtitle}}<span class="count">{{.Subtitle}}</span>{{end}}
+	<button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle color theme" title="Toggle color theme">
+		{{template "icon-sun"}}
+		{{template "icon-moon"}}
+	</button>
+</header>
+{{end}}

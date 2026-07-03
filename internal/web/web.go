@@ -14,15 +14,39 @@ import (
 	"github.com/ravi/error-logger/internal/store"
 )
 
-//go:embed templates/*.html
+//go:embed templates
 var templateFS embed.FS
 
 //go:embed static/*
 var staticFS embed.FS
 
-var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
+// baseTemplate holds the shared layout and partials (head, header, icons,
+// theme scripts). Each page clones it and adds its own "content" definition,
+// mirroring an extends/block template inheritance model.
+var baseTemplate = template.Must(template.New("").Funcs(template.FuncMap{
 	"add1": func(i int) int { return i + 1 },
-}).ParseFS(templateFS, "templates/*.html"))
+}).ParseFS(templateFS, "templates/layout.html", "templates/partials/*.html"))
+
+func pageTemplate(page string) *template.Template {
+	return template.Must(template.Must(baseTemplate.Clone()).ParseFS(templateFS, "templates/pages/"+page))
+}
+
+var (
+	projectsTmpl = pageTemplate("projects.html")
+	listTmpl     = pageTemplate("list.html")
+	detailTmpl   = pageTemplate("detail.html")
+)
+
+// Page is the data every template execution starts from: shared chrome
+// (title, back link, subtitle, refresh) plus the page-specific Data payload.
+type Page struct {
+	Title       string
+	Subtitle    string
+	BackHref    string
+	BackLabel   string
+	AutoRefresh bool
+	Data        interface{}
+}
 
 type Handler struct {
 	Store *store.Store
@@ -54,13 +78,15 @@ func (h *Handler) handleProjects(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	data := struct {
-		Count    int
-		Projects []projectRow
-	}{Count: len(rows), Projects: rows}
+	page := Page{
+		Title:       "error-logger",
+		Subtitle:    pluralize(len(rows), "project"),
+		AutoRefresh: true,
+		Data:        struct{ Projects []projectRow }{Projects: rows},
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, "projects", data); err != nil {
+	if err := projectsTmpl.ExecuteTemplate(w, "layout", page); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -83,14 +109,17 @@ func (h *Handler) handleProjectIssues(w http.ResponseWriter, r *http.Request) {
 		rows[i] = summarize(c)
 	}
 
-	data := struct {
-		ProjectID string
-		Count     int
-		Events    []eventRow
-	}{ProjectID: projectID, Count: len(rows), Events: rows}
+	page := Page{
+		Title:       fmt.Sprintf("%s — error-logger", projectID),
+		Subtitle:    fmt.Sprintf("%s in %s", pluralize(len(rows), "issue"), projectID),
+		BackHref:    "/",
+		BackLabel:   "error-logger",
+		AutoRefresh: true,
+		Data:        struct{ Events []eventRow }{Events: rows},
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, "list", data); err != nil {
+	if err := listTmpl.ExecuteTemplate(w, "layout", page); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -256,8 +285,15 @@ func (h *Handler) handleDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	page := Page{
+		Title:     fmt.Sprintf("%s — error-logger", dv.Summary),
+		BackHref:  "/projects/" + dv.ProjectID,
+		BackLabel: dv.ProjectID,
+		Data:      dv,
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, "detail", dv); err != nil {
+	if err := detailTmpl.ExecuteTemplate(w, "layout", page); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -376,6 +412,13 @@ func summarize(c store.Captured) eventRow {
 	}
 
 	return row
+}
+
+func pluralize(n int, singular string) string {
+	if n == 1 {
+		return fmt.Sprintf("1 %s", singular)
+	}
+	return fmt.Sprintf("%d %ss", n, singular)
 }
 
 func orUnknown(s string) string {

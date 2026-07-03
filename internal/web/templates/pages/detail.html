@@ -1,16 +1,5 @@
-{{define "detail"}}
-<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>{{.Summary}} — error-logger</title>
-<link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-<header>
-	<h1><a class="back" href="/projects/{{.ProjectID}}">&larr; {{.ProjectID}}</a></h1>
-</header>
-<main>
+{{define "content"}}
+{{with .Data}}
 <div class="detail">
 	<h2><span class="badge level-{{.Level}}">{{.Level}}</span> {{.Summary}}</h2>
 
@@ -41,7 +30,7 @@
 	{{range $i, $exc := .Exceptions}}
 	<div class="field exception">
 		<div class="label">
-			Exception{{if gt (len $.Exceptions) 1}} {{add1 $i}} of {{len $.Exceptions}}{{end}}
+			Exception{{if gt (len $.Data.Exceptions) 1}} {{add1 $i}} of {{len $.Data.Exceptions}}{{end}}
 			{{if $exc.Mechanism}}
 				{{if eq $exc.Mechanism.Handled "unhandled"}}<span class="pill pill-bad">unhandled</span>{{else if eq $exc.Mechanism.Handled "handled"}}<span class="pill pill-good">handled</span>{{end}}
 				{{if $exc.Mechanism.Type}}<span class="pill">{{$exc.Mechanism.Type}}</span>{{end}}
@@ -156,7 +145,5 @@
 		</details>
 	</div>
 </div>
-</main>
-</body>
-</html>
+{{end}}
 {{end}}

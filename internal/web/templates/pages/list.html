@@ -1,18 +1,5 @@
-{{define "list"}}
-<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>{{.ProjectID}} — error-logger</title>
-<meta http-equiv="refresh" content="5">
-<link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-<header>
-	<h1><a class="back" href="/">&larr; error-logger</a></h1>
-	<span class="count">{{.Count}} issue{{if ne .Count 1}}s{{end}} in {{.ProjectID}}</span>
-</header>
-<main>
+{{define "content"}}
+{{with .Data}}
 {{if .Events}}
 <table>
 	<tr>
@@ -35,7 +22,5 @@
 {{else}}
 <p class="empty">No issues captured yet for this project.</p>
 {{end}}
-</main>
-</body>
-</html>
+{{end}}
 {{end}}

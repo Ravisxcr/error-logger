@@ -1,0 +1,7 @@
+{{define "head"}}
+<meta charset="utf-8">
+<title>{{.Title}}</title>
+{{if .AutoRefresh}}<meta http-equiv="refresh" content="5">{{end}}
+<script>{{template "theme-init-script"}}</script>
+<link rel="stylesheet" href="/static/style.css">
+{{end}}

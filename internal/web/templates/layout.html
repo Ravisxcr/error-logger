@@ -1,0 +1,15 @@
+{{define "layout"}}
+<!doctype html>
+<html>
+<head>
+{{template "head" .}}
+</head>
+<body>
+{{template "header" .}}
+<main>
+{{block "content" .}}{{end}}
+</main>
+<script>{{template "theme-toggle-script"}}</script>
+</body>
+</html>
+{{end}}
