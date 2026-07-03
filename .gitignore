@@ -33,7 +33,7 @@ go.work.sum
 # Editor/IDE
 .idea/
 .vscode/
-demo/
 .venv/
 .claude/
+__pycache__/
 
