@@ -1,7 +1,12 @@
 {{define "content"}}
 {{with .Data}}
 <div class="detail">
-	<h2><span class="badge level-{{.Level}}">{{.Level}}</span> {{.Summary}}</h2>
+	<h2>
+		<span class="badge level-{{.Level}}">{{.Level}}</span> {{.Summary}}
+		<form class="delete-form" method="post" action="/events/{{.ID}}/delete" onsubmit="return confirm('Delete this issue and all its captured occurrences?')">
+			<button class="btn-delete" type="submit">Delete</button>
+		</form>
+	</h2>
 
 	<div class="field">
 		<div class="label">Received</div>

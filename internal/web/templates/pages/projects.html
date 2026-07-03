@@ -7,6 +7,7 @@
 		<th>Issues</th>
 		<th>Events</th>
 		<th>Last seen</th>
+		<th></th>
 	</tr>
 	{{range .Projects}}
 	<tr>
@@ -14,6 +15,11 @@
 		<td>{{.Issues}}</td>
 		<td>{{.Events}}</td>
 		<td>{{.LastSeen}}</td>
+		<td>
+			<form class="delete-form" method="post" action="/projects/{{.ProjectID}}/delete" onsubmit="return confirm('Delete project {{.ProjectID}} and all its captured events?')">
+				<button class="btn-delete" type="submit">Delete</button>
+			</form>
+		</td>
 	</tr>
 	{{end}}
 </table>

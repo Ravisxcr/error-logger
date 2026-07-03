@@ -258,3 +258,150 @@ func (s *Store) ListByProject(projectID string) []Captured {
 	}
 	return out
 }
+
+// DeleteEvent removes a single captured row by ID. See DeleteEvents.
+func (s *Store) DeleteEvent(id string) (bool, error) {
+	n, err := s.DeleteEvents([]string{id})
+	return n > 0, err
+}
+
+// DeleteEvents removes every captured row whose ID is in ids from memory
+// and from the durable log. Since grouped issues share one ID across every
+// occurrence line (see insert), this drops each issue's whole history, not
+// just its latest occurrence. Reports how many rows were deleted.
+func (s *Store) DeleteEvents(ids []string) (int, error) {
+	set := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		set[id] = true
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	kept := s.items[:0]
+	removed := 0
+	for _, it := range s.items {
+		if set[it.ID] {
+			removed++
+			continue
+		}
+		kept = append(kept, it)
+	}
+	s.items = kept
+	s.reindex()
+
+	if removed == 0 {
+		return 0, nil
+	}
+	if err := s.rewriteLog(func(c Captured) bool { return !set[c.ID] }); err != nil {
+		return removed, err
+	}
+	return removed, nil
+}
+
+// DeleteProject removes every captured row for projectID. See DeleteProjects.
+func (s *Store) DeleteProject(projectID string) (int, error) {
+	return s.DeleteProjects([]string{projectID})
+}
+
+// DeleteProjects removes every captured row whose project ID is in
+// projectIDs from memory and from the durable log. Reports how many rows
+// were deleted.
+func (s *Store) DeleteProjects(projectIDs []string) (int, error) {
+	set := make(map[string]bool, len(projectIDs))
+	for _, id := range projectIDs {
+		set[id] = true
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	kept := s.items[:0]
+	removed := 0
+	for _, it := range s.items {
+		if set[it.ProjectID] {
+			removed++
+			continue
+		}
+		kept = append(kept, it)
+	}
+	s.items = kept
+	s.reindex()
+
+	if removed == 0 {
+		return 0, nil
+	}
+	if err := s.rewriteLog(func(c Captured) bool { return !set[c.ProjectID] }); err != nil {
+		return removed, err
+	}
+	return removed, nil
+}
+
+// rewriteLog regenerates events.jsonl keeping only the lines for which keep
+// returns true. The log is otherwise append-only, so deletion is the one
+// case that needs a full rewrite; callers must hold s.mu.
+func (s *Store) rewriteLog(keep func(Captured) bool) error {
+	path := s.file.Name()
+
+	var kept [][]byte
+	if err := func() error {
+		in, err := os.Open(path)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+
+		scanner := bufio.NewScanner(in)
+		scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
+		for scanner.Scan() {
+			line := scanner.Bytes()
+			if len(line) == 0 {
+				continue
+			}
+			var c Captured
+			if err := json.Unmarshal(line, &c); err != nil {
+				continue
+			}
+			if keep(c) {
+				kept = append(kept, append([]byte(nil), line...))
+			}
+		}
+		return scanner.Err()
+	}(); err != nil {
+		return fmt.Errorf("read events log: %w", err)
+	}
+
+	if err := s.file.Close(); err != nil {
+		return fmt.Errorf("close events log: %w", err)
+	}
+
+	tmpPath := path + ".tmp"
+	out, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("create temp log: %w", err)
+	}
+	for _, line := range kept {
+		if _, err := out.Write(line); err == nil {
+			_, err = out.Write([]byte("\n"))
+		} else {
+			out.Close()
+			return fmt.Errorf("write temp log: %w", err)
+		}
+	}
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("write temp log: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("replace events log: %w", err)
+	}
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("reopen events log: %w", err)
+	}
+	s.file = f
+	return nil
+}

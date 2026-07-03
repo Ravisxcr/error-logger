@@ -55,7 +55,9 @@ type Handler struct {
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", h.handleProjects)
 	mux.HandleFunc("GET /projects/{project_id}", h.handleProjectIssues)
+	mux.HandleFunc("POST /projects/{project_id}/delete", h.handleDeleteProject)
 	mux.HandleFunc("GET /events/{id}", h.handleDetail)
+	mux.HandleFunc("POST /events/{id}/delete", h.handleDeleteEvent)
 	mux.Handle("GET /static/", http.FileServerFS(staticFS))
 }
 
@@ -198,92 +200,7 @@ func (h *Handler) handleDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dv := detailView{eventRow: summarize(c), FirstSeen: c.ReceivedAt.Local().Format("2006-01-02 15:04:05")}
-
-	raw, _ := json.MarshalIndent(c, "", "  ")
-	dv.RawJSON = string(raw)
-
-	if e := c.Event; e != nil {
-		dv.Environment = e.Environment
-		dv.Release = e.Release
-		dv.ServerName = e.ServerName
-		dv.Platform = e.Platform
-		if e.SDK != nil {
-			dv.SDK = strings.TrimSpace(e.SDK.Name + " " + e.SDK.Version)
-		}
-		dv.Tags = e.Tags
-
-		if e.Exception != nil {
-			for _, exc := range e.Exception.Values {
-				ev := exceptionView{Type: exc.Type, Value: exc.Value, Module: exc.Module}
-				if exc.Mechanism != nil {
-					mv := &mechanismView{Type: exc.Mechanism.Type}
-					if exc.Mechanism.Handled != nil {
-						if *exc.Mechanism.Handled {
-							mv.Handled = "handled"
-						} else {
-							mv.Handled = "unhandled"
-						}
-					}
-					ev.Mechanism = mv
-				}
-				if exc.Stacktrace != nil {
-					for _, f := range exc.Stacktrace.Frames {
-						ev.Frames = append(ev.Frames, buildFrame(f))
-					}
-				}
-				dv.Exceptions = append(dv.Exceptions, ev)
-			}
-		} else if msg := e.MessageText(); msg != "" {
-			dv.Message = msg
-		}
-
-		if e.Breadcrumbs != nil {
-			for _, b := range e.Breadcrumbs.Values {
-				dv.Breadcrumbs = append(dv.Breadcrumbs, breadcrumbView{
-					Time:     b.Time().Local().Format("15:04:05"),
-					Category: b.Category,
-					Message:  b.Message,
-				})
-			}
-		}
-
-		if e.User != nil {
-			dv.User = compactKV([]kv{
-				{"id", e.User.ID},
-				{"email", e.User.Email},
-				{"username", e.User.Username},
-				{"ip_address", e.User.IPAddress},
-			})
-		}
-
-		if e.Request != nil {
-			dv.Request = compactKV([]kv{
-				{"method", e.Request.Method},
-				{"url", e.Request.URL},
-				{"query_string", e.Request.QueryString},
-			})
-		}
-
-		for _, name := range sortedKeys(e.Contexts) {
-			if m, ok := e.Contexts[name].(map[string]interface{}); ok {
-				dv.Contexts = append(dv.Contexts, contextGroup{Name: name, Fields: toKV(m)})
-			}
-		}
-
-		dv.Extra = toKV(e.Extra)
-
-		if len(e.Modules) > 0 {
-			names := make([]string, 0, len(e.Modules))
-			for n := range e.Modules {
-				names = append(names, n)
-			}
-			sort.Strings(names)
-			for _, n := range names {
-				dv.Modules = append(dv.Modules, kv{Key: n, Value: e.Modules[n]})
-			}
-		}
-	}
+	dv := buildDetailView(c)
 
 	page := Page{
 		Title:     fmt.Sprintf("%s — error-logger", dv.Summary),
@@ -296,6 +213,166 @@ func (h *Handler) handleDetail(w http.ResponseWriter, r *http.Request) {
 	if err := detailTmpl.ExecuteTemplate(w, "layout", page); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func buildDetailView(c store.Captured) detailView {
+	dv := detailView{
+		eventRow:  summarize(c),
+		FirstSeen: c.ReceivedAt.Local().Format("2006-01-02 15:04:05"),
+	}
+
+	raw, _ := json.MarshalIndent(c, "", "  ")
+	dv.RawJSON = string(raw)
+
+	e := c.Event
+	if e == nil {
+		return dv
+	}
+
+	dv.Environment = e.Environment
+	dv.Release = e.Release
+	dv.ServerName = e.ServerName
+	dv.Platform = e.Platform
+	if e.SDK != nil {
+		dv.SDK = strings.TrimSpace(e.SDK.Name + " " + e.SDK.Version)
+	}
+	dv.Tags = e.Tags
+
+	dv.Exceptions = buildExceptions(e)
+	if len(dv.Exceptions) == 0 {
+		if msg := e.MessageText(); msg != "" {
+			dv.Message = msg
+		}
+	}
+
+	dv.Breadcrumbs = buildBreadcrumbs(e)
+	dv.User = buildUser(e)
+	dv.Request = buildRequest(e)
+	dv.Contexts = buildContexts(e)
+	dv.Extra = toKV(e.Extra)
+	dv.Modules = buildModules(e)
+
+	return dv
+}
+
+func buildExceptions(e *sentryevent.Event) []exceptionView {
+	if e.Exception == nil {
+		return nil
+	}
+	var out []exceptionView
+	for _, exc := range e.Exception.Values {
+		ev := exceptionView{Type: exc.Type, Value: exc.Value, Module: exc.Module}
+		if exc.Mechanism != nil {
+			mv := &mechanismView{Type: exc.Mechanism.Type}
+			if exc.Mechanism.Handled != nil {
+				if *exc.Mechanism.Handled {
+					mv.Handled = "handled"
+				} else {
+					mv.Handled = "unhandled"
+				}
+			}
+			ev.Mechanism = mv
+		}
+		if exc.Stacktrace != nil {
+			for _, f := range exc.Stacktrace.Frames {
+				ev.Frames = append(ev.Frames, buildFrame(f))
+			}
+		}
+		out = append(out, ev)
+	}
+	return out
+}
+
+func buildBreadcrumbs(e *sentryevent.Event) []breadcrumbView {
+	if e.Breadcrumbs == nil {
+		return nil
+	}
+	var out []breadcrumbView
+	for _, b := range e.Breadcrumbs.Values {
+		out = append(out, breadcrumbView{
+			Time:     b.Time().Local().Format("15:04:05"),
+			Category: b.Category,
+			Message:  b.Message,
+		})
+	}
+	return out
+}
+
+func buildUser(e *sentryevent.Event) []kv {
+	if e.User == nil {
+		return nil
+	}
+	return compactKV([]kv{
+		{"id", e.User.ID},
+		{"email", e.User.Email},
+		{"username", e.User.Username},
+		{"ip_address", e.User.IPAddress},
+	})
+}
+
+func buildRequest(e *sentryevent.Event) []kv {
+	if e.Request == nil {
+		return nil
+	}
+	return compactKV([]kv{
+		{"method", e.Request.Method},
+		{"url", e.Request.URL},
+		{"query_string", e.Request.QueryString},
+	})
+}
+
+func buildContexts(e *sentryevent.Event) []contextGroup {
+	var out []contextGroup
+	for _, name := range sortedKeys(e.Contexts) {
+		if m, ok := e.Contexts[name].(map[string]interface{}); ok {
+			out = append(out, contextGroup{Name: name, Fields: toKV(m)})
+		}
+	}
+	return out
+}
+
+func buildModules(e *sentryevent.Event) []kv {
+	if len(e.Modules) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(e.Modules))
+	for n := range e.Modules {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	var out []kv
+	for _, n := range names {
+		out = append(out, kv{Key: n, Value: e.Modules[n]})
+	}
+	return out
+}
+
+// handleDeleteEvent deletes a single issue (and, since grouped occurrences
+// share an ID, its full occurrence history) and returns to the project's
+// issue list.
+func (h *Handler) handleDeleteEvent(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	c, ok := h.Store.Get(id)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	if _, err := h.Store.DeleteEvent(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/projects/"+c.ProjectID, http.StatusSeeOther)
+}
+
+// handleDeleteProject deletes every captured row for a project and returns
+// to the project overview.
+func (h *Handler) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("project_id")
+	if _, err := h.Store.DeleteProject(projectID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func buildFrame(f sentryevent.Frame) frameView {

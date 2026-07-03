@@ -8,6 +8,7 @@
 		<th>Kind</th>
 		<th>Summary</th>
 		<th>Seen</th>
+		<th></th>
 	</tr>
 	{{range .Events}}
 	<tr>
@@ -16,6 +17,11 @@
 		<td>{{.Kind}}</td>
 		<td><a href="/events/{{.ID}}">{{.Summary}}</a></td>
 		<td>{{if gt .Count 1}}<span class="badge count">&times;{{.Count}}</span>{{else}}1{{end}}</td>
+		<td>
+			<form class="delete-form" method="post" action="/events/{{.ID}}/delete" onsubmit="return confirm('Delete this issue and all its captured occurrences?')">
+				<button class="btn-delete" type="submit">Delete</button>
+			</form>
+		</td>
 	</tr>
 	{{end}}
 </table>
