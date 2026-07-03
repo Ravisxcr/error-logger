@@ -1,0 +1,39 @@
+{{define "projects"}}
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>error-logger</title>
+<meta http-equiv="refresh" content="5">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+	<h1>error-logger</h1>
+	<span class="count">{{.Count}} project{{if ne .Count 1}}s{{end}}</span>
+</header>
+<main>
+{{if .Projects}}
+<table>
+	<tr>
+		<th>Project</th>
+		<th>Issues</th>
+		<th>Events</th>
+		<th>Last seen</th>
+	</tr>
+	{{range .Projects}}
+	<tr>
+		<td><a href="/projects/{{.ProjectID}}">{{.ProjectID}}</a></td>
+		<td>{{.Issues}}</td>
+		<td>{{.Events}}</td>
+		<td>{{.LastSeen}}</td>
+	</tr>
+	{{end}}
+</table>
+{{else}}
+<p class="empty">No events captured yet. Point your Sentry SDK's DSN at this server and trigger an error.</p>
+{{end}}
+</main>
+</body>
+</html>
+{{end}}

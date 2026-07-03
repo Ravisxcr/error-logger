@@ -35,8 +35,8 @@ func main() {
 	ing := &ingest.Handler{
 		Store:  st,
 		Logger: logger,
-		Print: func(c store.Captured) {
-			console.Print(os.Stdout, c)
+		Print: func(c store.Captured, isNew bool) {
+			console.Print(os.Stdout, c, isNew)
 		},
 	}
 	ing.RegisterRoutes(mux)

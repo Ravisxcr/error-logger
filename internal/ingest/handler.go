@@ -22,8 +22,10 @@ import (
 )
 
 // Printer is anything that can render a captured event as it arrives
-// (satisfied by console.Print).
-type Printer func(store.Captured)
+// (satisfied by console.Print). isNew reports whether this is the first
+// occurrence of the underlying error or a repeat that bumped an existing
+// entry's count.
+type Printer func(c store.Captured, isNew bool)
 
 type Handler struct {
 	Store  *store.Store
@@ -76,17 +78,17 @@ func (h *Handler) handleEnvelope(w http.ResponseWriter, r *http.Request) {
 				ProjectID:  projectID,
 				Kind:       kind,
 				ReceivedAt: time.Now(),
+				GroupKey:   groupKey(projectID, &e),
 				Event:      &e,
 			})
 		default:
 			// session, profile, attachment, client_report, etc: acknowledge
-			// but don't attempt to fully parse.
-			id := eventID
-			if id == "" {
-				id = newID()
-			}
+			// but don't attempt to fully parse. Each gets its own fresh ID
+			// (rather than reusing the envelope's event_id) since an envelope
+			// can carry several of these items and they'd otherwise collide
+			// in the store's ID index.
 			h.capture(store.Captured{
-				ID:         id,
+				ID:         newID(),
 				ProjectID:  projectID,
 				Kind:       kind,
 				ReceivedAt: time.Now(),
@@ -123,6 +125,7 @@ func (h *Handler) handleStore(w http.ResponseWriter, r *http.Request) {
 		ProjectID:  projectID,
 		Kind:       "event",
 		ReceivedAt: time.Now(),
+		GroupKey:   groupKey(projectID, &e),
 		Event:      &e,
 	})
 
@@ -137,12 +140,23 @@ func (h *Handler) handleIgnore(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) capture(c store.Captured) {
-	if err := h.Store.Add(c); err != nil {
+	stored, isNew, err := h.Store.Add(c)
+	if err != nil {
 		h.Logger.Printf("store event: %v", err)
 	}
 	if h.Print != nil {
-		h.Print(c)
+		h.Print(stored, isNew)
 	}
+}
+
+// groupKey combines the project ID with the event's own grouping identity so
+// identical errors from different projects are never merged together.
+func groupKey(projectID string, e *sentryevent.Event) string {
+	k := e.GroupKey()
+	if k == "" {
+		return ""
+	}
+	return projectID + "\x00" + k
 }
 
 func readBody(r io.Reader, gzipped bool) ([]byte, error) {

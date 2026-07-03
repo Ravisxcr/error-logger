@@ -45,6 +45,22 @@ Key design constraints to preserve:
 - **Never fail an SDK request** for envelope item types we don't fully parse — always ack with 200, or the SDK will retry/back off and the dev loses visibility.
 - Event/item IDs: prefer `event.EventID`, fall back to the envelope header's `event_id`, fall back to a random 32-hex-char ID (`ingest.newID`).
 
+## Sentry event types
+
+Sentry captures more than just errors — it's built around a general "event" concept with several types:
+
+- **Error events** — exceptions/crashes, the primary use case. Includes stack trace, exception type/value, mechanism (handled vs unhandled).
+- **Message events** — arbitrary log-style captures via `captureMessage()`, with a severity level (`fatal`, `error`, `warning`, `info`, `debug`). `info`-level messages are a first-class citizen, not just errors.
+- **Transaction events** — performance monitoring / tracing data (spans, durations), used for APM-style features. Structurally different from error/message events — sent as a `transaction` envelope item type.
+- **Breadcrumbs** — not standalone events, but a trail of prior actions/logs (clicks, HTTP requests, console logs) attached to whatever event eventually fires, giving context leading up to it.
+- **Session/replay data** — release health (crash-free session %) and, in some SDKs, session replay recordings. These are separate envelope item types too (`session`, `replay_event`, etc.).
+
+Since this server parses Sentry envelopes, the key implication is: an envelope can contain different **item types**, not just `event`. Only handling `type: event` items silently drops `transaction`, `session`, and `client_report` items that some SDKs send by default (e.g. the JS SDK sends performance transactions unless tracing is disabled).
+
+For a minimal error logger, the target behavior is:
+- Parse and store `event` items (both error and message subtypes — check the `level` field, and whether `exception` or just `message` is present).
+- Either ignore or separately log `transaction`/`session`/`client_report` items so parsing doesn't choke on them.
+
 ## Progress
 
 Status as of the last session: **initial implementation complete and verified end-to-end.**

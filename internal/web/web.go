@@ -29,9 +29,40 @@ type Handler struct {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /{$}", h.handleList)
+	mux.HandleFunc("GET /{$}", h.handleProjects)
+	mux.HandleFunc("GET /projects/{project_id}", h.handleProjectIssues)
 	mux.HandleFunc("GET /events/{id}", h.handleDetail)
 	mux.Handle("GET /static/", http.FileServerFS(staticFS))
+}
+
+type projectRow struct {
+	ProjectID string
+	Issues    int
+	Events    int
+	LastSeen  string
+}
+
+func (h *Handler) handleProjects(w http.ResponseWriter, r *http.Request) {
+	summaries := h.Store.Projects()
+	rows := make([]projectRow, len(summaries))
+	for i, p := range summaries {
+		rows[i] = projectRow{
+			ProjectID: p.ProjectID,
+			Issues:    p.Issues,
+			Events:    p.Events,
+			LastSeen:  p.LastSeen.Local().Format("2006-01-02 15:04:05"),
+		}
+	}
+
+	data := struct {
+		Count    int
+		Projects []projectRow
+	}{Count: len(rows), Projects: rows}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.ExecuteTemplate(w, "projects", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 type eventRow struct {
@@ -41,19 +72,22 @@ type eventRow struct {
 	ProjectID string
 	Kind      string
 	Summary   string
+	Count     int
 }
 
-func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
-	captured := h.Store.List()
+func (h *Handler) handleProjectIssues(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("project_id")
+	captured := h.Store.ListByProject(projectID)
 	rows := make([]eventRow, len(captured))
 	for i, c := range captured {
 		rows[i] = summarize(c)
 	}
 
 	data := struct {
-		Count  int
-		Events []eventRow
-	}{Count: len(rows), Events: rows}
+		ProjectID string
+		Count     int
+		Events    []eventRow
+	}{ProjectID: projectID, Count: len(rows), Events: rows}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.ExecuteTemplate(w, "list", data); err != nil {
@@ -107,6 +141,7 @@ type breadcrumbView struct {
 
 type detailView struct {
 	eventRow
+	FirstSeen   string
 	Environment string
 	Release     string
 	ServerName  string
@@ -134,7 +169,7 @@ func (h *Handler) handleDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dv := detailView{eventRow: summarize(c)}
+	dv := detailView{eventRow: summarize(c), FirstSeen: c.ReceivedAt.Local().Format("2006-01-02 15:04:05")}
 
 	raw, _ := json.MarshalIndent(c, "", "  ")
 	dv.RawJSON = string(raw)
@@ -312,11 +347,12 @@ func compactKV(pairs []kv) []kv {
 func summarize(c store.Captured) eventRow {
 	row := eventRow{
 		ID:        c.ID,
-		Time:      c.ReceivedAt.Local().Format("2006-01-02 15:04:05"),
+		Time:      c.LastSeen.Local().Format("2006-01-02 15:04:05"),
 		ProjectID: c.ProjectID,
 		Kind:      c.Kind,
 		Level:     "info",
 		Summary:   c.Kind,
+		Count:     c.Count,
 	}
 
 	if c.Event == nil {

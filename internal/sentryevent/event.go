@@ -3,7 +3,11 @@
 // server needs to accept, store, and render.
 package sentryevent
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
 
 // Event is a single Sentry "error" or "message" event, as sent inside an
 // envelope item of type "event".
@@ -159,4 +163,33 @@ type User struct {
 type SDK struct {
 	Name    string `json:"name,omitempty"`
 	Version string `json:"version,omitempty"`
+}
+
+// GroupKey returns a stable string identifying the "issue" this event
+// belongs to, so repeated occurrences of the same underlying error can be
+// collapsed into one entry with a running count instead of appearing as
+// separate rows (mirrors Sentry's issue grouping). An empty result means
+// there isn't enough information to group the event.
+func (e *Event) GroupKey() string {
+	if e == nil {
+		return ""
+	}
+	if len(e.Fingerprint) > 0 {
+		return "fp:" + strings.Join(e.Fingerprint, "\x00")
+	}
+	if e.Exception != nil && len(e.Exception.Values) > 0 {
+		exc := e.Exception.Values[len(e.Exception.Values)-1]
+		if exc.Stacktrace != nil && len(exc.Stacktrace.Frames) > 0 {
+			f := exc.Stacktrace.Frames[len(exc.Stacktrace.Frames)-1]
+			return fmt.Sprintf("exc:%s\x00%s\x00%s", exc.Type, f.Module, f.Function)
+		}
+		return fmt.Sprintf("exc:%s\x00%s", exc.Type, exc.Value)
+	}
+	if e.Message != nil && e.Message.Text() != "" {
+		return "msg:" + e.Logger + "\x00" + e.Message.Text()
+	}
+	if e.Transaction != "" {
+		return "txn:" + e.Transaction
+	}
+	return ""
 }

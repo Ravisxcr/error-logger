@@ -3,14 +3,14 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>error-logger</title>
+<title>{{.ProjectID}} — error-logger</title>
 <meta http-equiv="refresh" content="5">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <header>
-	<h1>error-logger</h1>
-	<span class="count">{{.Count}} captured</span>
+	<h1><a class="back" href="/">&larr; error-logger</a></h1>
+	<span class="count">{{.Count}} issue{{if ne .Count 1}}s{{end}} in {{.ProjectID}}</span>
 </header>
 <main>
 {{if .Events}}
@@ -18,22 +18,22 @@
 	<tr>
 		<th>Time</th>
 		<th>Level</th>
-		<th>Project</th>
 		<th>Kind</th>
 		<th>Summary</th>
+		<th>Seen</th>
 	</tr>
 	{{range .Events}}
 	<tr>
 		<td>{{.Time}}</td>
 		<td><span class="badge level-{{.Level}}">{{.Level}}</span></td>
-		<td>{{.ProjectID}}</td>
 		<td>{{.Kind}}</td>
 		<td><a href="/events/{{.ID}}">{{.Summary}}</a></td>
+		<td>{{if gt .Count 1}}<span class="badge count">&times;{{.Count}}</span>{{else}}1{{end}}</td>
 	</tr>
 	{{end}}
 </table>
 {{else}}
-<p class="empty">No events captured yet. Point your Sentry SDK's DSN at this server and trigger an error.</p>
+<p class="empty">No issues captured yet for this project.</p>
 {{end}}
 </main>
 </body>

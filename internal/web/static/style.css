@@ -82,6 +82,8 @@ tr:hover td { background: var(--panel); }
 .badge.level-info { background: rgba(110,168,254,0.15); }
 .badge.level-debug { background: rgba(125,132,146,0.15); }
 
+.badge.count { color: var(--accent); background: rgba(110,168,254,0.15); }
+
 .empty {
 	padding: 40px 20px;
 	color: var(--muted);

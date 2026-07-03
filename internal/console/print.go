@@ -35,9 +35,12 @@ func levelColor(level string) string {
 	}
 }
 
-// Print writes a human-readable summary of c to w.
-func Print(w io.Writer, c store.Captured) {
-	ts := c.ReceivedAt.Local().Format("15:04:05")
+// Print writes a human-readable summary of c to w. isNew reports whether
+// this is the first occurrence of c's underlying error; repeats print a
+// single compact "seen again" line carrying the running count instead of a
+// full block, so the console doesn't get flooded with duplicate stacktraces.
+func Print(w io.Writer, c store.Captured, isNew bool) {
+	ts := c.LastSeen.Local().Format("15:04:05")
 
 	if c.Event == nil {
 		fmt.Fprintf(w, "%s[%s]%s %s%-10s%s project=%s id=%s\n",
@@ -48,11 +51,34 @@ func Print(w io.Writer, c store.Captured) {
 	e := c.Event
 	level := e.Level
 	if level == "" {
-		level = "error"
+		if c.Kind == "event" {
+			level = "error"
+		} else {
+			level = "info"
+		}
 	}
 	lc := levelColor(level)
 
+	if !isNew {
+		var summary string
+		switch {
+		case e.Exception != nil && len(e.Exception.Values) > 0:
+			exc := e.Exception.Values[len(e.Exception.Values)-1]
+			summary = fmt.Sprintf("%s: %s", exc.Type, exc.Value)
+		case e.Message != nil && e.Message.Text() != "":
+			summary = e.Message.Text()
+		case e.Transaction != "":
+			summary = e.Transaction
+		}
+		fmt.Fprintf(w, "%s[%s]%s %s%-7s%s project=%s %s(seen again x%d)%s %s %sid=%s%s\n",
+			dim, ts, reset, lc, strings.ToUpper(level), reset, c.ProjectID, gray, c.Count, reset, summary, gray, c.ID, reset)
+		return
+	}
+
 	header := fmt.Sprintf("%s[%s]%s %s%-7s%s project=%s", dim, ts, reset, lc, strings.ToUpper(level), reset, c.ProjectID)
+	if c.Kind != "event" {
+		header += fmt.Sprintf(" kind=%s", c.Kind)
+	}
 	if e.Environment != "" {
 		header += fmt.Sprintf(" env=%s", e.Environment)
 	}
@@ -82,6 +108,8 @@ func Print(w io.Writer, c store.Captured) {
 		}
 	} else if e.Message != nil {
 		fmt.Fprintf(w, "  %s\n", e.Message.Text())
+	} else if e.Transaction != "" {
+		fmt.Fprintf(w, "  %s\n", e.Transaction)
 	}
 
 	if len(e.Tags) > 0 {
