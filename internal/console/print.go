@@ -35,118 +35,118 @@ func levelColor(level string) string {
 	}
 }
 
-// Print writes a human-readable summary of c to w. isNew reports whether
-// this is the first occurrence of c's underlying error; repeats print a
+// Print writes a human-readable summary of capturedEvent to writer. isNew reports whether
+// this is the first occurrence of capturedEvent's underlying error; repeats print a
 // single compact "seen again" line carrying the running count instead of a
 // full block, so the console doesn't get flooded with duplicate stacktraces.
-func Print(w io.Writer, c store.Captured, isNew bool) {
-	ts := c.LastSeen.Local().Format("15:04:05")
+func Print(writer io.Writer, capturedEvent store.Captured, isNew bool) {
+	timestamp := capturedEvent.LastSeen.Local().Format("15:04:05")
 
-	if c.Event == nil {
-		fmt.Fprintf(w, "%s[%s]%s %s%-10s%s project=%s id=%s\n",
-			dim, ts, reset, cyan, c.Kind, reset, c.ProjectID, c.ID)
+	if capturedEvent.Event == nil {
+		fmt.Fprintf(writer, "%s[%s]%s %s%-10s%s project=%s id=%s\n",
+			dim, timestamp, reset, cyan, capturedEvent.Kind, reset, capturedEvent.ProjectID, capturedEvent.ID)
 		return
 	}
 
-	e := c.Event
-	level := e.Level
+	event := capturedEvent.Event
+	level := event.Level
 	if level == "" {
-		if c.Kind == "event" {
+		if capturedEvent.Kind == "event" {
 			level = "error"
 		} else {
 			level = "info"
 		}
 	}
-	lc := levelColor(level)
+	colorCode := levelColor(level)
 
 	if !isNew {
 		var summary string
 		switch {
-		case e.Exception != nil && len(e.Exception.Values) > 0:
-			exc := e.Exception.Values[len(e.Exception.Values)-1]
-			summary = fmt.Sprintf("%s: %s", exc.Type, exc.Value)
-		case e.MessageText() != "":
-			summary = e.MessageText()
-		case e.Transaction != "":
-			summary = e.Transaction
+		case event.Exception != nil && len(event.Exception.Values) > 0:
+			exception := event.Exception.Values[len(event.Exception.Values)-1]
+			summary = fmt.Sprintf("%s: %s", exception.Type, exception.Value)
+		case event.MessageText() != "":
+			summary = event.MessageText()
+		case event.Transaction != "":
+			summary = event.Transaction
 		}
-		fmt.Fprintf(w, "%s[%s]%s %s%-7s%s project=%s %s(seen again x%d)%s %s %sid=%s%s\n",
-			dim, ts, reset, lc, strings.ToUpper(level), reset, c.ProjectID, gray, c.Count, reset, summary, gray, c.ID, reset)
+		fmt.Fprintf(writer, "%s[%s]%s %s%-7s%s project=%s %s(seen again x%d)%s %s %sid=%s%s\n",
+			dim, timestamp, reset, colorCode, strings.ToUpper(level), reset, capturedEvent.ProjectID, gray, capturedEvent.Count, reset, summary, gray, capturedEvent.ID, reset)
 		return
 	}
 
-	header := fmt.Sprintf("%s[%s]%s %s%-7s%s project=%s", dim, ts, reset, lc, strings.ToUpper(level), reset, c.ProjectID)
-	if c.Kind != "event" {
-		header += fmt.Sprintf(" kind=%s", c.Kind)
+	header := fmt.Sprintf("%s[%s]%s %s%-7s%s project=%s", dim, timestamp, reset, colorCode, strings.ToUpper(level), reset, capturedEvent.ProjectID)
+	if capturedEvent.Kind != "event" {
+		header += fmt.Sprintf(" kind=%s", capturedEvent.Kind)
 	}
-	if e.Environment != "" {
-		header += fmt.Sprintf(" env=%s", e.Environment)
+	if event.Environment != "" {
+		header += fmt.Sprintf(" env=%s", event.Environment)
 	}
-	if e.Release != "" {
-		header += fmt.Sprintf(" release=%s", e.Release)
+	if event.Release != "" {
+		header += fmt.Sprintf(" release=%s", event.Release)
 	}
-	fmt.Fprintln(w, header)
+	fmt.Fprintln(writer, header)
 
-	if e.Exception != nil {
-		for _, exc := range e.Exception.Values {
-			fmt.Fprintf(w, "  %s%s%s: %s\n", bold, exc.Type, reset, exc.Value)
-			if exc.Stacktrace != nil {
-				frames := exc.Stacktrace.Frames
-				start := 0
+	if event.Exception != nil {
+		for _, exception := range event.Exception.Values {
+			fmt.Fprintf(writer, "  %s%s%s: %s\n", bold, exception.Type, reset, exception.Value)
+			if exception.Stacktrace != nil {
+				frames := exception.Stacktrace.Frames
+				startIndex := 0
 				if len(frames) > 8 {
-					start = len(frames) - 8
-					fmt.Fprintf(w, "    %s... %d earlier frames omitted%s\n", gray, start, reset)
+					startIndex = len(frames) - 8
+					fmt.Fprintf(writer, "    %s... %d earlier frames omitted%s\n", gray, startIndex, reset)
 				}
-				for _, f := range frames[start:] {
-					loc := f.Filename
-					if loc == "" {
-						loc = f.AbsPath
+				for _, stackFrame := range frames[startIndex:] {
+					location := stackFrame.Filename
+					if location == "" {
+						location = stackFrame.AbsPath
 					}
-					fmt.Fprintf(w, "    %sat%s %s (%s:%d)\n", gray, reset, frameFunc(f.Function), loc, f.Lineno)
+					fmt.Fprintf(writer, "    %sat%s %s (%s:%d)\n", gray, reset, formatFunctionName(stackFrame.Function), location, stackFrame.Lineno)
 				}
 			}
 		}
-	} else if msg := e.MessageText(); msg != "" {
-		fmt.Fprintf(w, "  %s\n", msg)
-	} else if e.Transaction != "" {
-		fmt.Fprintf(w, "  %s\n", e.Transaction)
+	} else if messageText := event.MessageText(); messageText != "" {
+		fmt.Fprintf(writer, "  %s\n", messageText)
+	} else if event.Transaction != "" {
+		fmt.Fprintf(writer, "  %s\n", event.Transaction)
 	}
 
-	if e.Breadcrumbs != nil && len(e.Breadcrumbs.Values) > 0 {
-		crumbs := e.Breadcrumbs.Values
-		start := 0
+	if event.Breadcrumbs != nil && len(event.Breadcrumbs.Values) > 0 {
+		crumbs := event.Breadcrumbs.Values
+		startIndex := 0
 		if len(crumbs) > 8 {
-			start = len(crumbs) - 8
-			fmt.Fprintf(w, "  %sBreadcrumbs (%d earlier omitted):%s\n", gray, start, reset)
+			startIndex = len(crumbs) - 8
+			fmt.Fprintf(writer, "  %sBreadcrumbs (%d earlier omitted):%s\n", gray, startIndex, reset)
 		} else {
-			fmt.Fprintf(w, "  %sBreadcrumbs:%s\n", gray, reset)
+			fmt.Fprintf(writer, "  %sBreadcrumbs:%s\n", gray, reset)
 		}
-		for _, b := range crumbs[start:] {
-			bts := b.Time().Local().Format("15:04:05.000")
-			blc := levelColor(b.Level)
-			category := b.Category
+		for _, breadcrumb := range crumbs[startIndex:] {
+			breadcrumbTimestamp := breadcrumb.Time().Local().Format("15:04:05.000")
+			breadcrumbLevelColor := levelColor(breadcrumb.Level)
+			category := breadcrumb.Category
 			if category == "" {
-				category = b.Type
+				category = breadcrumb.Type
 			}
-			fmt.Fprintf(w, "    %s%s%s %s%-7s%s %s%s%s: %s\n",
-				dim, bts, reset, blc, strings.ToUpper(b.Level), reset, gray, category, reset, b.Message)
+			fmt.Fprintf(writer, "    %s%s%s %s%-7s%s %s%s%s: %s\n",
+				dim, breadcrumbTimestamp, reset, breadcrumbLevelColor, strings.ToUpper(breadcrumb.Level), reset, gray, category, reset, breadcrumb.Message)
 		}
 	}
 
-	if len(e.Tags) > 0 {
-		var pairs []string
-		for k, v := range e.Tags {
-			pairs = append(pairs, fmt.Sprintf("%s=%s", k, v))
+	if len(event.Tags) > 0 {
+		var tagPairs []string
+		for tagKey, tagValue := range event.Tags {
+			tagPairs = append(tagPairs, fmt.Sprintf("%s=%s", tagKey, tagValue))
 		}
-		fmt.Fprintf(w, "  %stags: %s%s\n", gray, strings.Join(pairs, " "), reset)
+		fmt.Fprintf(writer, "  %stags: %s%s\n", gray, strings.Join(tagPairs, " "), reset)
 	}
 
-	fmt.Fprintf(w, "  %sid=%s%s\n", gray, c.ID, reset)
+	fmt.Fprintf(writer, "  %sid=%s%s\n", gray, capturedEvent.ID, reset)
 }
 
-func frameFunc(f string) string {
-	if f == "" {
+func formatFunctionName(functionName string) string {
+	if functionName == "" {
 		return "<unknown>"
 	}
-	return f
+	return functionName
 }

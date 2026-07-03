@@ -49,64 +49,64 @@ type Message struct {
 }
 
 // UnmarshalJSON accepts either a bare JSON string or a {"formatted": ...} object.
-func (m *Message) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err == nil {
-		m.Formatted = s
+func (msg *Message) UnmarshalJSON(data []byte) error {
+	var strValue string
+	if err := json.Unmarshal(data, &strValue); err == nil {
+		msg.Formatted = strValue
 		return nil
 	}
-	type alias Message
-	var a alias
-	if err := json.Unmarshal(data, &a); err != nil {
+	type messageAlias Message
+	var msgAlias messageAlias
+	if err := json.Unmarshal(data, &msgAlias); err != nil {
 		return err
 	}
-	*m = Message(a)
+	*msg = Message(msgAlias)
 	return nil
 }
 
 // Text returns the best human-readable rendering of the message.
-func (m *Message) Text() string {
-	if m == nil {
+func (msg *Message) Text() string {
+	if msg == nil {
 		return ""
 	}
-	if m.Formatted != "" {
-		return m.Formatted
+	if msg.Formatted != "" {
+		return msg.Formatted
 	}
-	return m.Message
+	return msg.Message
 }
 
 // MessageText returns the event's message text, checking both wire encodings
 // Sentry SDKs use for it: capture_message sends "message", while the stdlib
 // LoggingIntegration sends "logentry".
-func (e *Event) MessageText() string {
-	if e == nil {
+func (event *Event) MessageText() string {
+	if event == nil {
 		return ""
 	}
-	if e.Message != nil && e.Message.Text() != "" {
-		return e.Message.Text()
+	if event.Message != nil && event.Message.Text() != "" {
+		return event.Message.Text()
 	}
-	return e.LogEntry.Text()
+	return event.LogEntry.Text()
 }
 
 // TagSet handles Sentry's two tag encodings: an object map, or an array of
 // [key, value] pairs.
 type TagSet map[string]string
 
-func (t *TagSet) UnmarshalJSON(data []byte) error {
-	m := map[string]string{}
-	if err := json.Unmarshal(data, &m); err == nil {
-		*t = m
+func (tags *TagSet) UnmarshalJSON(data []byte) error {
+	tagMap := map[string]string{}
+	if err := json.Unmarshal(data, &tagMap); err == nil {
+		*tags = tagMap
 		return nil
 	}
 	var pairs [][2]string
 	if err := json.Unmarshal(data, &pairs); err != nil {
 		return err
 	}
-	m = make(map[string]string, len(pairs))
-	for _, p := range pairs {
-		m[p[0]] = p[1]
+	tagMap = make(map[string]string, len(pairs))
+	for _, pair := range pairs {
+		tagMap[pair[0]] = pair[1]
 	}
-	*t = m
+	*tags = tagMap
 	return nil
 }
 
@@ -164,19 +164,19 @@ type Breadcrumb struct {
 // Time parses the breadcrumb's timestamp, which Sentry SDKs send as either
 // an RFC3339 string or a float of seconds since the epoch. The zero Time is
 // returned if it's absent or unparseable.
-func (b *Breadcrumb) Time() time.Time {
-	if b == nil || len(b.Timestamp) == 0 {
+func (crumb *Breadcrumb) Time() time.Time {
+	if crumb == nil || len(crumb.Timestamp) == 0 {
 		return time.Time{}
 	}
-	var s string
-	if err := json.Unmarshal(b.Timestamp, &s); err == nil {
-		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
-			return t
+	var timestampStr string
+	if err := json.Unmarshal(crumb.Timestamp, &timestampStr); err == nil {
+		if parsedTime, err := time.Parse(time.RFC3339Nano, timestampStr); err == nil {
+			return parsedTime
 		}
 		return time.Time{}
 	}
-	if f, err := strconv.ParseFloat(string(b.Timestamp), 64); err == nil {
-		return time.Unix(0, int64(f*float64(time.Second)))
+	if floatTimestamp, err := strconv.ParseFloat(string(crumb.Timestamp), 64); err == nil {
+		return time.Unix(0, int64(floatTimestamp*float64(time.Second)))
 	}
 	return time.Time{}
 }
@@ -206,26 +206,26 @@ type SDK struct {
 // collapsed into one entry with a running count instead of appearing as
 // separate rows (mirrors Sentry's issue grouping). An empty result means
 // there isn't enough information to group the event.
-func (e *Event) GroupKey() string {
-	if e == nil {
+func (event *Event) GroupKey() string {
+	if event == nil {
 		return ""
 	}
-	if len(e.Fingerprint) > 0 {
-		return "fp:" + strings.Join(e.Fingerprint, "\x00")
+	if len(event.Fingerprint) > 0 {
+		return "fp:" + strings.Join(event.Fingerprint, "\x00")
 	}
-	if e.Exception != nil && len(e.Exception.Values) > 0 {
-		exc := e.Exception.Values[len(e.Exception.Values)-1]
-		if exc.Stacktrace != nil && len(exc.Stacktrace.Frames) > 0 {
-			f := exc.Stacktrace.Frames[len(exc.Stacktrace.Frames)-1]
-			return fmt.Sprintf("exc:%s\x00%s\x00%s", exc.Type, f.Module, f.Function)
+	if event.Exception != nil && len(event.Exception.Values) > 0 {
+		lastException := event.Exception.Values[len(event.Exception.Values)-1]
+		if lastException.Stacktrace != nil && len(lastException.Stacktrace.Frames) > 0 {
+			lastFrame := lastException.Stacktrace.Frames[len(lastException.Stacktrace.Frames)-1]
+			return fmt.Sprintf("exc:%s\x00%s\x00%s", lastException.Type, lastFrame.Module, lastFrame.Function)
 		}
-		return fmt.Sprintf("exc:%s\x00%s", exc.Type, exc.Value)
+		return fmt.Sprintf("exc:%s\x00%s", lastException.Type, lastException.Value)
 	}
-	if msg := e.MessageText(); msg != "" {
-		return "msg:" + e.Logger + "\x00" + msg
+	if msgText := event.MessageText(); msgText != "" {
+		return "msg:" + event.Logger + "\x00" + msgText
 	}
-	if e.Transaction != "" {
-		return "txn:" + e.Transaction
+	if event.Transaction != "" {
+		return "txn:" + event.Transaction
 	}
 	return ""
 }

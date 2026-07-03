@@ -41,16 +41,16 @@ type Envelope struct {
 // Decode reads and decompresses (if needed) the request body, then parses
 // it as a Sentry envelope.
 func Decode(body io.Reader, gzipped bool) (*Envelope, error) {
-	var r io.Reader = body
+	var reader io.Reader = body
 	if gzipped {
-		gz, err := gzip.NewReader(body)
+		gzipReader, err := gzip.NewReader(body)
 		if err != nil {
 			return nil, fmt.Errorf("gzip: %w", err)
 		}
-		defer gz.Close()
-		r = gz
+		defer gzipReader.Close()
+		reader = gzipReader
 	}
-	data, err := io.ReadAll(r)
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, fmt.Errorf("read body: %w", err)
 	}
@@ -59,67 +59,67 @@ func Decode(body io.Reader, gzipped bool) (*Envelope, error) {
 
 // Parse parses raw (already decompressed) envelope bytes.
 func Parse(data []byte) (*Envelope, error) {
-	line, rest, ok := cutLine(data)
-	if !ok {
+	headerLine, remainingBytes, found := cutLine(data)
+	if !found {
 		return nil, fmt.Errorf("envelope: missing header line")
 	}
-	env := &Envelope{}
-	line = bytes.TrimSpace(line)
-	if len(line) > 0 {
-		if err := json.Unmarshal(line, &env.Header); err != nil {
+	parsedEnvelope := &Envelope{}
+	headerLine = bytes.TrimSpace(headerLine)
+	if len(headerLine) > 0 {
+		if err := json.Unmarshal(headerLine, &parsedEnvelope.Header); err != nil {
 			return nil, fmt.Errorf("envelope header: %w", err)
 		}
 	}
 
-	for len(rest) > 0 {
+	for len(remainingBytes) > 0 {
 		var itemHeaderLine []byte
-		itemHeaderLine, rest, ok = cutLine(rest)
-		if !ok {
+		itemHeaderLine, remainingBytes, found = cutLine(remainingBytes)
+		if !found {
 			// Final line with no trailing newline.
-			itemHeaderLine = rest
-			rest = nil
+			itemHeaderLine = remainingBytes
+			remainingBytes = nil
 		}
 		itemHeaderLine = bytes.TrimSpace(itemHeaderLine)
 		if len(itemHeaderLine) == 0 {
 			continue
 		}
-		var ih ItemHeader
-		if err := json.Unmarshal(itemHeaderLine, &ih); err != nil {
+		var itemHeader ItemHeader
+		if err := json.Unmarshal(itemHeaderLine, &itemHeader); err != nil {
 			return nil, fmt.Errorf("envelope item header: %w", err)
 		}
 
 		var payload []byte
-		if ih.Length != nil {
-			n := *ih.Length
-			if n > len(rest) {
-				return nil, fmt.Errorf("envelope item %q: declared length %d exceeds remaining body", ih.Type, n)
+		if itemHeader.Length != nil {
+			payloadLength := *itemHeader.Length
+			if payloadLength > len(remainingBytes) {
+				return nil, fmt.Errorf("envelope item %q: declared length %d exceeds remaining body", itemHeader.Type, payloadLength)
 			}
-			payload = rest[:n]
-			rest = rest[n:]
+			payload = remainingBytes[:payloadLength]
+			remainingBytes = remainingBytes[payloadLength:]
 			// Consume the single trailing newline separating this item from the next.
-			if len(rest) > 0 && rest[0] == '\n' {
-				rest = rest[1:]
+			if len(remainingBytes) > 0 && remainingBytes[0] == '\n' {
+				remainingBytes = remainingBytes[1:]
 			}
 		} else {
-			payload, rest, ok = cutLine(rest)
-			if !ok {
-				payload = rest
-				rest = nil
+			payload, remainingBytes, found = cutLine(remainingBytes)
+			if !found {
+				payload = remainingBytes
+				remainingBytes = nil
 			}
 		}
 
-		env.Items = append(env.Items, Item{Header: ih, Payload: payload})
+		parsedEnvelope.Items = append(parsedEnvelope.Items, Item{Header: itemHeader, Payload: payload})
 	}
 
-	return env, nil
+	return parsedEnvelope, nil
 }
 
 // cutLine splits data at the first '\n', returning the part before it, the
 // part after it, and true. If there is no '\n', it returns false.
 func cutLine(data []byte) (before, after []byte, found bool) {
-	i := bytes.IndexByte(data, '\n')
-	if i < 0 {
+	newlineIndex := bytes.IndexByte(data, '\n')
+	if newlineIndex < 0 {
 		return nil, nil, false
 	}
-	return data[:i], data[i+1:], true
+	return data[:newlineIndex], data[newlineIndex+1:], true
 }

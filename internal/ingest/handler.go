@@ -25,7 +25,7 @@ import (
 // (satisfied by console.Print). isNew reports whether this is the first
 // occurrence of the underlying error or a repeat that bumped an existing
 // entry's count.
-type Printer func(c store.Captured, isNew bool)
+type Printer func(capturedEvent store.Captured, isNew bool)
 
 type Handler struct {
 	Store  *store.Store
@@ -41,19 +41,19 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/{project_id}/minidump/", h.handleIgnore)
 }
 
-func (h *Handler) handleEnvelope(w http.ResponseWriter, r *http.Request) {
-	projectID := r.PathValue("project_id")
-	gzipped := strings.EqualFold(r.Header.Get("Content-Encoding"), "gzip")
+func (h *Handler) handleEnvelope(responseWriter http.ResponseWriter, request *http.Request) {
+	projectID := request.PathValue("project_id")
+	gzipped := strings.EqualFold(request.Header.Get("Content-Encoding"), "gzip")
 
-	env, err := envelope.Decode(r.Body, gzipped)
+	parsedEnvelope, err := envelope.Decode(request.Body, gzipped)
 	if err != nil {
 		h.Logger.Printf("envelope decode error (project=%s): %v", projectID, err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(responseWriter, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	eventID := env.Header.EventID
-	for _, item := range env.Items {
+	eventID := parsedEnvelope.Header.EventID
+	for _, item := range parsedEnvelope.Items {
 		kind := item.Header.Type
 		if kind == "" {
 			kind = "event"
@@ -61,12 +61,12 @@ func (h *Handler) handleEnvelope(w http.ResponseWriter, r *http.Request) {
 
 		switch kind {
 		case "event", "transaction":
-			var e sentryevent.Event
-			if err := json.Unmarshal(item.Payload, &e); err != nil {
+			var sentryEvent sentryevent.Event
+			if err := json.Unmarshal(item.Payload, &sentryEvent); err != nil {
 				h.Logger.Printf("skip malformed %s item (project=%s): %v", kind, projectID, err)
 				continue
 			}
-			id := e.EventID
+			id := sentryEvent.EventID
 			if id == "" {
 				id = eventID
 			}
@@ -78,8 +78,8 @@ func (h *Handler) handleEnvelope(w http.ResponseWriter, r *http.Request) {
 				ProjectID:  projectID,
 				Kind:       kind,
 				ReceivedAt: time.Now(),
-				GroupKey:   groupKey(projectID, &e),
-				Event:      &e,
+				GroupKey:   groupKey(projectID, &sentryEvent),
+				Event:      &sentryEvent,
 			})
 		default:
 			// session, profile, attachment, client_report, etc: acknowledge
@@ -96,51 +96,51 @@ func (h *Handler) handleEnvelope(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeAck(w, eventID)
+	writeAck(responseWriter, eventID)
 }
 
-func (h *Handler) handleStore(w http.ResponseWriter, r *http.Request) {
-	projectID := r.PathValue("project_id")
-	gzipped := strings.EqualFold(r.Header.Get("Content-Encoding"), "gzip")
+func (h *Handler) handleStore(responseWriter http.ResponseWriter, request *http.Request) {
+	projectID := request.PathValue("project_id")
+	gzipped := strings.EqualFold(request.Header.Get("Content-Encoding"), "gzip")
 
-	body, err := readBody(r.Body, gzipped)
+	body, err := readBody(request.Body, gzipped)
 	if err != nil {
 		h.Logger.Printf("store decode error (project=%s): %v", projectID, err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(responseWriter, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	var e sentryevent.Event
-	if err := json.Unmarshal(body, &e); err != nil {
+	var sentryEvent sentryevent.Event
+	if err := json.Unmarshal(body, &sentryEvent); err != nil {
 		h.Logger.Printf("malformed store payload (project=%s): %v", projectID, err)
-		http.Error(w, "invalid event payload", http.StatusBadRequest)
+		http.Error(responseWriter, "invalid event payload", http.StatusBadRequest)
 		return
 	}
-	if e.EventID == "" {
-		e.EventID = newID()
+	if sentryEvent.EventID == "" {
+		sentryEvent.EventID = newID()
 	}
 
 	h.capture(store.Captured{
-		ID:         e.EventID,
+		ID:         sentryEvent.EventID,
 		ProjectID:  projectID,
 		Kind:       "event",
 		ReceivedAt: time.Now(),
-		GroupKey:   groupKey(projectID, &e),
-		Event:      &e,
+		GroupKey:   groupKey(projectID, &sentryEvent),
+		Event:      &sentryEvent,
 	})
 
-	writeAck(w, e.EventID)
+	writeAck(responseWriter, sentryEvent.EventID)
 }
 
 // handleIgnore acknowledges endpoints we intentionally don't process
 // (security reports, minidumps) so the SDK doesn't treat them as failures.
-func (h *Handler) handleIgnore(w http.ResponseWriter, r *http.Request) {
-	io.Copy(io.Discard, r.Body)
-	writeAck(w, "")
+func (h *Handler) handleIgnore(responseWriter http.ResponseWriter, request *http.Request) {
+	io.Copy(io.Discard, request.Body)
+	writeAck(responseWriter, "")
 }
 
-func (h *Handler) capture(c store.Captured) {
-	stored, isNew, err := h.Store.Add(c)
+func (h *Handler) capture(capturedEvent store.Captured) {
+	stored, isNew, err := h.Store.Add(capturedEvent)
 	if err != nil {
 		h.Logger.Printf("store event: %v", err)
 	}
@@ -151,40 +151,40 @@ func (h *Handler) capture(c store.Captured) {
 
 // groupKey combines the project ID with the event's own grouping identity so
 // identical errors from different projects are never merged together.
-func groupKey(projectID string, e *sentryevent.Event) string {
-	k := e.GroupKey()
-	if k == "" {
+func groupKey(projectID string, sentryEvent *sentryevent.Event) string {
+	key := sentryEvent.GroupKey()
+	if key == "" {
 		return ""
 	}
-	return projectID + "\x00" + k
+	return projectID + "\x00" + key
 }
 
-func readBody(r io.Reader, gzipped bool) ([]byte, error) {
+func readBody(reader io.Reader, gzipped bool) ([]byte, error) {
 	if !gzipped {
-		return io.ReadAll(r)
+		return io.ReadAll(reader)
 	}
-	gz, err := gzip.NewReader(r)
+	gzipReader, err := gzip.NewReader(reader)
 	if err != nil {
 		return nil, fmt.Errorf("gzip: %w", err)
 	}
-	defer gz.Close()
-	return io.ReadAll(gz)
+	defer gzipReader.Close()
+	return io.ReadAll(gzipReader)
 }
 
-func writeAck(w http.ResponseWriter, eventID string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+func writeAck(responseWriter http.ResponseWriter, eventID string) {
+	responseWriter.Header().Set("Content-Type", "application/json")
+	responseWriter.WriteHeader(http.StatusOK)
 	if eventID == "" {
-		w.Write([]byte(`{}`))
+		responseWriter.Write([]byte(`{}`))
 		return
 	}
-	fmt.Fprintf(w, `{"id":%q}`, eventID)
+	fmt.Fprintf(responseWriter, `{"id":%q}`, eventID)
 }
 
 func newID() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
+	randomBytes := make([]byte, 16)
+	if _, err := rand.Read(randomBytes); err != nil {
 		return "00000000000000000000000000000000"
 	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(randomBytes)
 }

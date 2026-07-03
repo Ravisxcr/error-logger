@@ -68,15 +68,15 @@ type projectRow struct {
 	LastSeen  string
 }
 
-func (h *Handler) handleProjects(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleProjects(writer http.ResponseWriter, request *http.Request) {
 	summaries := h.Store.Projects()
 	rows := make([]projectRow, len(summaries))
-	for i, p := range summaries {
-		rows[i] = projectRow{
-			ProjectID: p.ProjectID,
-			Issues:    p.Issues,
-			Events:    p.Events,
-			LastSeen:  p.LastSeen.Local().Format("2006-01-02 15:04:05"),
+	for index, summary := range summaries {
+		rows[index] = projectRow{
+			ProjectID: summary.ProjectID,
+			Issues:    summary.Issues,
+			Events:    summary.Events,
+			LastSeen:  summary.LastSeen.Local().Format("2006-01-02 15:04:05"),
 		}
 	}
 
@@ -87,9 +87,9 @@ func (h *Handler) handleProjects(w http.ResponseWriter, r *http.Request) {
 		Data:        struct{ Projects []projectRow }{Projects: rows},
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := projectsTmpl.ExecuteTemplate(w, "layout", page); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := projectsTmpl.ExecuteTemplate(writer, "layout", page); err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
 	}
 }
 
@@ -103,12 +103,12 @@ type eventRow struct {
 	Count     int
 }
 
-func (h *Handler) handleProjectIssues(w http.ResponseWriter, r *http.Request) {
-	projectID := r.PathValue("project_id")
+func (h *Handler) handleProjectIssues(writer http.ResponseWriter, request *http.Request) {
+	projectID := request.PathValue("project_id")
 	captured := h.Store.ListByProject(projectID)
 	rows := make([]eventRow, len(captured))
-	for i, c := range captured {
-		rows[i] = summarize(c)
+	for index, capturedEvent := range captured {
+		rows[index] = summarize(capturedEvent)
 	}
 
 	page := Page{
@@ -120,9 +120,9 @@ func (h *Handler) handleProjectIssues(w http.ResponseWriter, r *http.Request) {
 		Data:        struct{ Events []eventRow }{Events: rows},
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := listTmpl.ExecuteTemplate(w, "layout", page); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := listTmpl.ExecuteTemplate(writer, "layout", page); err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
 	}
 }
 
@@ -192,315 +192,315 @@ type detailView struct {
 	RawJSON string
 }
 
-func (h *Handler) handleDetail(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	c, ok := h.Store.Get(id)
+func (h *Handler) handleDetail(writer http.ResponseWriter, request *http.Request) {
+	id := request.PathValue("id")
+	capturedEvent, ok := h.Store.Get(id)
 	if !ok {
-		http.NotFound(w, r)
+		http.NotFound(writer, request)
 		return
 	}
 
-	dv := buildDetailView(c)
+	detailViewData := buildDetailView(capturedEvent)
 
 	page := Page{
-		Title:     fmt.Sprintf("%s — error-logger", dv.Summary),
-		BackHref:  "/projects/" + dv.ProjectID,
-		BackLabel: dv.ProjectID,
-		Data:      dv,
+		Title:     fmt.Sprintf("%s — error-logger", detailViewData.Summary),
+		BackHref:  "/projects/" + detailViewData.ProjectID,
+		BackLabel: detailViewData.ProjectID,
+		Data:      detailViewData,
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := detailTmpl.ExecuteTemplate(w, "layout", page); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := detailTmpl.ExecuteTemplate(writer, "layout", page); err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func buildDetailView(c store.Captured) detailView {
-	dv := detailView{
-		eventRow:  summarize(c),
-		FirstSeen: c.ReceivedAt.Local().Format("2006-01-02 15:04:05"),
+func buildDetailView(capturedEvent store.Captured) detailView {
+	detailViewData := detailView{
+		eventRow:  summarize(capturedEvent),
+		FirstSeen: capturedEvent.ReceivedAt.Local().Format("2006-01-02 15:04:05"),
 	}
 
-	raw, _ := json.MarshalIndent(c, "", "  ")
-	dv.RawJSON = string(raw)
+	raw, _ := json.MarshalIndent(capturedEvent, "", "  ")
+	detailViewData.RawJSON = string(raw)
 
-	e := c.Event
-	if e == nil {
-		return dv
+	eventData := capturedEvent.Event
+	if eventData == nil {
+		return detailViewData
 	}
 
-	dv.Environment = e.Environment
-	dv.Release = e.Release
-	dv.ServerName = e.ServerName
-	dv.Platform = e.Platform
-	if e.SDK != nil {
-		dv.SDK = strings.TrimSpace(e.SDK.Name + " " + e.SDK.Version)
+	detailViewData.Environment = eventData.Environment
+	detailViewData.Release = eventData.Release
+	detailViewData.ServerName = eventData.ServerName
+	detailViewData.Platform = eventData.Platform
+	if eventData.SDK != nil {
+		detailViewData.SDK = strings.TrimSpace(eventData.SDK.Name + " " + eventData.SDK.Version)
 	}
-	dv.Tags = e.Tags
+	detailViewData.Tags = eventData.Tags
 
-	dv.Exceptions = buildExceptions(e)
-	if len(dv.Exceptions) == 0 {
-		if msg := e.MessageText(); msg != "" {
-			dv.Message = msg
+	detailViewData.Exceptions = buildExceptions(eventData)
+	if len(detailViewData.Exceptions) == 0 {
+		if msg := eventData.MessageText(); msg != "" {
+			detailViewData.Message = msg
 		}
 	}
 
-	dv.Breadcrumbs = buildBreadcrumbs(e)
-	dv.User = buildUser(e)
-	dv.Request = buildRequest(e)
-	dv.Contexts = buildContexts(e)
-	dv.Extra = toKV(e.Extra)
-	dv.Modules = buildModules(e)
+	detailViewData.Breadcrumbs = buildBreadcrumbs(eventData)
+	detailViewData.User = buildUser(eventData)
+	detailViewData.Request = buildRequest(eventData)
+	detailViewData.Contexts = buildContexts(eventData)
+	detailViewData.Extra = toKV(eventData.Extra)
+	detailViewData.Modules = buildModules(eventData)
 
-	return dv
+	return detailViewData
 }
 
-func buildExceptions(e *sentryevent.Event) []exceptionView {
-	if e.Exception == nil {
+func buildExceptions(eventData *sentryevent.Event) []exceptionView {
+	if eventData.Exception == nil {
 		return nil
 	}
-	var out []exceptionView
-	for _, exc := range e.Exception.Values {
-		ev := exceptionView{Type: exc.Type, Value: exc.Value, Module: exc.Module}
-		if exc.Mechanism != nil {
-			mv := &mechanismView{Type: exc.Mechanism.Type}
-			if exc.Mechanism.Handled != nil {
-				if *exc.Mechanism.Handled {
-					mv.Handled = "handled"
+	var exceptionsList []exceptionView
+	for _, exceptionVal := range eventData.Exception.Values {
+		exceptionViewData := exceptionView{Type: exceptionVal.Type, Value: exceptionVal.Value, Module: exceptionVal.Module}
+		if exceptionVal.Mechanism != nil {
+			mechanismViewData := &mechanismView{Type: exceptionVal.Mechanism.Type}
+			if exceptionVal.Mechanism.Handled != nil {
+				if *exceptionVal.Mechanism.Handled {
+					mechanismViewData.Handled = "handled"
 				} else {
-					mv.Handled = "unhandled"
+					mechanismViewData.Handled = "unhandled"
 				}
 			}
-			ev.Mechanism = mv
+			exceptionViewData.Mechanism = mechanismViewData
 		}
-		if exc.Stacktrace != nil {
-			for _, f := range exc.Stacktrace.Frames {
-				ev.Frames = append(ev.Frames, buildFrame(f))
+		if exceptionVal.Stacktrace != nil {
+			for _, frameVal := range exceptionVal.Stacktrace.Frames {
+				exceptionViewData.Frames = append(exceptionViewData.Frames, buildFrame(frameVal))
 			}
 		}
-		out = append(out, ev)
+		exceptionsList = append(exceptionsList, exceptionViewData)
 	}
-	return out
+	return exceptionsList
 }
 
-func buildBreadcrumbs(e *sentryevent.Event) []breadcrumbView {
-	if e.Breadcrumbs == nil {
+func buildBreadcrumbs(eventData *sentryevent.Event) []breadcrumbView {
+	if eventData.Breadcrumbs == nil {
 		return nil
 	}
-	var out []breadcrumbView
-	for _, b := range e.Breadcrumbs.Values {
-		out = append(out, breadcrumbView{
-			Time:     b.Time().Local().Format("15:04:05"),
-			Category: b.Category,
-			Message:  b.Message,
+	var breadcrumbsList []breadcrumbView
+	for _, breadcrumbVal := range eventData.Breadcrumbs.Values {
+		breadcrumbsList = append(breadcrumbsList, breadcrumbView{
+			Time:     breadcrumbVal.Time().Local().Format("15:04:05"),
+			Category: breadcrumbVal.Category,
+			Message:  breadcrumbVal.Message,
 		})
 	}
-	return out
+	return breadcrumbsList
 }
 
-func buildUser(e *sentryevent.Event) []kv {
-	if e.User == nil {
+func buildUser(eventData *sentryevent.Event) []kv {
+	if eventData.User == nil {
 		return nil
 	}
 	return compactKV([]kv{
-		{"id", e.User.ID},
-		{"email", e.User.Email},
-		{"username", e.User.Username},
-		{"ip_address", e.User.IPAddress},
+		{"id", eventData.User.ID},
+		{"email", eventData.User.Email},
+		{"username", eventData.User.Username},
+		{"ip_address", eventData.User.IPAddress},
 	})
 }
 
-func buildRequest(e *sentryevent.Event) []kv {
-	if e.Request == nil {
+func buildRequest(eventData *sentryevent.Event) []kv {
+	if eventData.Request == nil {
 		return nil
 	}
 	return compactKV([]kv{
-		{"method", e.Request.Method},
-		{"url", e.Request.URL},
-		{"query_string", e.Request.QueryString},
+		{"method", eventData.Request.Method},
+		{"url", eventData.Request.URL},
+		{"query_string", eventData.Request.QueryString},
 	})
 }
 
-func buildContexts(e *sentryevent.Event) []contextGroup {
-	var out []contextGroup
-	for _, name := range sortedKeys(e.Contexts) {
-		if m, ok := e.Contexts[name].(map[string]interface{}); ok {
-			out = append(out, contextGroup{Name: name, Fields: toKV(m)})
+func buildContexts(eventData *sentryevent.Event) []contextGroup {
+	var contextGroupsList []contextGroup
+	for _, name := range sortedKeys(eventData.Contexts) {
+		if contextMap, ok := eventData.Contexts[name].(map[string]interface{}); ok {
+			contextGroupsList = append(contextGroupsList, contextGroup{Name: name, Fields: toKV(contextMap)})
 		}
 	}
-	return out
+	return contextGroupsList
 }
 
-func buildModules(e *sentryevent.Event) []kv {
-	if len(e.Modules) == 0 {
+func buildModules(eventData *sentryevent.Event) []kv {
+	if len(eventData.Modules) == 0 {
 		return nil
 	}
-	names := make([]string, 0, len(e.Modules))
-	for n := range e.Modules {
-		names = append(names, n)
+	names := make([]string, 0, len(eventData.Modules))
+	for moduleName := range eventData.Modules {
+		names = append(names, moduleName)
 	}
 	sort.Strings(names)
-	var out []kv
-	for _, n := range names {
-		out = append(out, kv{Key: n, Value: e.Modules[n]})
+	var modulesList []kv
+	for _, moduleName := range names {
+		modulesList = append(modulesList, kv{Key: moduleName, Value: eventData.Modules[moduleName]})
 	}
-	return out
+	return modulesList
 }
 
 // handleDeleteEvent deletes a single issue (and, since grouped occurrences
 // share an ID, its full occurrence history) and returns to the project's
 // issue list.
-func (h *Handler) handleDeleteEvent(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	c, ok := h.Store.Get(id)
+func (h *Handler) handleDeleteEvent(writer http.ResponseWriter, request *http.Request) {
+	id := request.PathValue("id")
+	capturedEvent, ok := h.Store.Get(id)
 	if !ok {
-		http.NotFound(w, r)
+		http.NotFound(writer, request)
 		return
 	}
 	if _, err := h.Store.DeleteEvent(id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/projects/"+c.ProjectID, http.StatusSeeOther)
+	http.Redirect(writer, request, "/projects/"+capturedEvent.ProjectID, http.StatusSeeOther)
 }
 
 // handleDeleteProject deletes every captured row for a project and returns
 // to the project overview.
-func (h *Handler) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
-	projectID := r.PathValue("project_id")
+func (h *Handler) handleDeleteProject(writer http.ResponseWriter, request *http.Request) {
+	projectID := request.PathValue("project_id")
 	if _, err := h.Store.DeleteProject(projectID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(writer, request, "/", http.StatusSeeOther)
 }
 
-func buildFrame(f sentryevent.Frame) frameView {
-	loc := f.Filename
-	if loc == "" {
-		loc = f.AbsPath
+func buildFrame(frameData sentryevent.Frame) frameView {
+	locationPath := frameData.Filename
+	if locationPath == "" {
+		locationPath = frameData.AbsPath
 	}
-	location := loc
-	if f.Lineno != 0 {
-		location = fmt.Sprintf("%s:%d", loc, f.Lineno)
+	location := locationPath
+	if frameData.Lineno != 0 {
+		location = fmt.Sprintf("%s:%d", locationPath, frameData.Lineno)
 	}
 
-	fv := frameView{
-		Function: orUnknown(f.Function),
-		Module:   f.Module,
+	frameViewData := frameView{
+		Function: orUnknown(frameData.Function),
+		Module:   frameData.Module,
 		Location: location,
-		InApp:    f.InApp,
+		InApp:    frameData.InApp,
 	}
 
-	if f.ContextLine != "" || len(f.PreContext) > 0 || len(f.PostContext) > 0 {
-		start := f.Lineno - len(f.PreContext)
-		for i, t := range f.PreContext {
-			fv.Lines = append(fv.Lines, codeLine{Num: start + i, Text: t})
+	if frameData.ContextLine != "" || len(frameData.PreContext) > 0 || len(frameData.PostContext) > 0 {
+		start := frameData.Lineno - len(frameData.PreContext)
+		for lineIndex, contextText := range frameData.PreContext {
+			frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: start + lineIndex, Text: contextText})
 		}
-		fv.Lines = append(fv.Lines, codeLine{Num: f.Lineno, Text: f.ContextLine, Current: true})
-		for i, t := range f.PostContext {
-			fv.Lines = append(fv.Lines, codeLine{Num: f.Lineno + 1 + i, Text: t})
+		frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno, Text: frameData.ContextLine, Current: true})
+		for lineIndex, contextText := range frameData.PostContext {
+			frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno + 1 + lineIndex, Text: contextText})
 		}
 	}
 
-	if len(f.Vars) > 0 {
+	if len(frameData.Vars) > 0 {
 		var vars map[string]interface{}
-		if err := json.Unmarshal(f.Vars, &vars); err == nil {
-			fv.Vars = toKV(vars)
+		if err := json.Unmarshal(frameData.Vars, &vars); err == nil {
+			frameViewData.Vars = toKV(vars)
 		}
 	}
 
-	return fv
+	return frameViewData
 }
 
 // toKV renders a JSON object as a sorted, display-ready key/value list.
-func toKV(m map[string]interface{}) []kv {
-	out := make([]kv, 0, len(m))
-	for _, k := range sortedKeys(m) {
-		out = append(out, kv{Key: k, Value: stringify(m[k])})
+func toKV(dataMap map[string]interface{}) []kv {
+	kvList := make([]kv, 0, len(dataMap))
+	for _, mapKey := range sortedKeys(dataMap) {
+		kvList = append(kvList, kv{Key: mapKey, Value: stringify(dataMap[mapKey])})
 	}
-	return out
+	return kvList
 }
 
-func sortedKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+func sortedKeys(dataMap map[string]interface{}) []string {
+	keys := make([]string, 0, len(dataMap))
+	for mapKey := range dataMap {
+		keys = append(keys, mapKey)
 	}
 	sort.Strings(keys)
 	return keys
 }
 
-func stringify(v interface{}) string {
-	switch val := v.(type) {
+func stringify(value interface{}) string {
+	switch typedValue := value.(type) {
 	case string:
-		return val
+		return typedValue
 	case nil:
 		return "null"
 	default:
-		b, err := json.Marshal(val)
+		jsonBytes, err := json.Marshal(typedValue)
 		if err != nil {
-			return fmt.Sprint(val)
+			return fmt.Sprint(typedValue)
 		}
-		return string(b)
+		return string(jsonBytes)
 	}
 }
 
 // compactKV drops empty-valued pairs so the template doesn't render blank rows.
 func compactKV(pairs []kv) []kv {
-	out := make([]kv, 0, len(pairs))
-	for _, p := range pairs {
-		if p.Value != "" {
-			out = append(out, p)
+	compactedList := make([]kv, 0, len(pairs))
+	for _, pair := range pairs {
+		if pair.Value != "" {
+			compactedList = append(compactedList, pair)
 		}
 	}
-	return out
+	return compactedList
 }
 
-func summarize(c store.Captured) eventRow {
+func summarize(capturedEvent store.Captured) eventRow {
 	row := eventRow{
-		ID:        c.ID,
-		Time:      c.LastSeen.Local().Format("2006-01-02 15:04:05"),
-		ProjectID: c.ProjectID,
-		Kind:      c.Kind,
+		ID:        capturedEvent.ID,
+		Time:      capturedEvent.LastSeen.Local().Format("2006-01-02 15:04:05"),
+		ProjectID: capturedEvent.ProjectID,
+		Kind:      capturedEvent.Kind,
 		Level:     "info",
-		Summary:   c.Kind,
-		Count:     c.Count,
+		Summary:   capturedEvent.Kind,
+		Count:     capturedEvent.Count,
 	}
 
-	if c.Event == nil {
+	if capturedEvent.Event == nil {
 		return row
 	}
 
-	if c.Event.Level != "" {
-		row.Level = strings.ToLower(c.Event.Level)
-	} else if c.Kind == "event" {
+	if capturedEvent.Event.Level != "" {
+		row.Level = strings.ToLower(capturedEvent.Event.Level)
+	} else if capturedEvent.Kind == "event" {
 		row.Level = "error"
 	}
 
 	switch {
-	case c.Event.Exception != nil && len(c.Event.Exception.Values) > 0:
-		exc := c.Event.Exception.Values[len(c.Event.Exception.Values)-1]
-		row.Summary = fmt.Sprintf("%s: %s", exc.Type, exc.Value)
-	case c.Event.MessageText() != "":
-		row.Summary = c.Event.MessageText()
-	case c.Event.Transaction != "":
-		row.Summary = c.Event.Transaction
+	case capturedEvent.Event.Exception != nil && len(capturedEvent.Event.Exception.Values) > 0:
+		exceptionVal := capturedEvent.Event.Exception.Values[len(capturedEvent.Event.Exception.Values)-1]
+		row.Summary = fmt.Sprintf("%s: %s", exceptionVal.Type, exceptionVal.Value)
+	case capturedEvent.Event.MessageText() != "":
+		row.Summary = capturedEvent.Event.MessageText()
+	case capturedEvent.Event.Transaction != "":
+		row.Summary = capturedEvent.Event.Transaction
 	}
 
 	return row
 }
 
-func pluralize(n int, singular string) string {
-	if n == 1 {
+func pluralize(count int, singular string) string {
+	if count == 1 {
 		return fmt.Sprintf("1 %s", singular)
 	}
-	return fmt.Sprintf("%d %ss", n, singular)
+	return fmt.Sprintf("%d %ss", count, singular)
 }
 
-func orUnknown(s string) string {
-	if s == "" {
+func orUnknown(inputStr string) string {
+	if inputStr == "" {
 		return "<unknown>"
 	}
-	return s
+	return inputStr
 }
