@@ -1,0 +1,14 @@
+{{define "header"}}
+<header class="site-header">
+	<div class="header-inner">
+		<h1 class="header-title">
+		{{if .BackHref}}<a class="back" href="{{.BackHref}}">{{template "icon-arrow-left"}}<span>{{.BackLabel}}</span></a>{{else}}<span class="brand">{{template "icon-logo"}}<span>{{.Title}}</span></span>{{end}}
+		</h1>
+		{{if .Subtitle}}<span class="subtitle-pill">{{.Subtitle}}</span>{{end}}
+		<button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle color theme" title="Toggle color theme">
+			{{template "icon-sun"}}
+			{{template "icon-moon"}}
+		</button>
+	</div>
+</header>
+{{end}}

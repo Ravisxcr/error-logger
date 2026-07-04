@@ -1,0 +1,9 @@
+services:
+  error-logger:
+    build: .
+    container_name: error-logger
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

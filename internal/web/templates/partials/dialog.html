@@ -1,0 +1,74 @@
+{{define "confirm-dialog"}}
+<dialog id="confirm-dialog" class="confirm-dialog">
+	<div class="confirm-dialog-body">
+		<p id="confirm-dialog-message"></p>
+		<div class="confirm-dialog-actions">
+			<button type="button" class="btn" data-dialog-cancel>Cancel</button>
+			<button type="button" class="btn btn-danger" data-dialog-confirm>Delete</button>
+		</div>
+	</div>
+</dialog>
+{{end}}
+
+{{define "confirm-dialog-script"}}
+(function () {
+	var dialog = document.getElementById("confirm-dialog");
+	if (!dialog) return;
+	var messageEl = document.getElementById("confirm-dialog-message");
+	var confirmBtn = dialog.querySelector("[data-dialog-confirm]");
+	var cancelBtn = dialog.querySelector("[data-dialog-cancel]");
+	var pendingForm = null;
+
+	document.querySelectorAll("form[data-confirm]").forEach(function (form) {
+		form.addEventListener("submit", function (event) {
+			if (form.dataset.confirmed === "true") return;
+			event.preventDefault();
+			pendingForm = form;
+			messageEl.textContent = form.getAttribute("data-confirm");
+			dialog.showModal();
+		});
+	});
+
+	confirmBtn.addEventListener("click", function () {
+		dialog.close();
+		if (pendingForm) {
+			pendingForm.dataset.confirmed = "true";
+			pendingForm.requestSubmit();
+			pendingForm = null;
+		}
+	});
+	cancelBtn.addEventListener("click", function () {
+		pendingForm = null;
+		dialog.close();
+	});
+	dialog.addEventListener("cancel", function () {
+		pendingForm = null;
+	});
+})();
+{{end}}
+
+{{define "bulk-select-script"}}
+(function () {
+	document.querySelectorAll("[data-select-all]").forEach(function (selectAll) {
+		var scope = selectAll.getAttribute("data-select-all");
+		var boxes = Array.prototype.slice.call(document.querySelectorAll('.row-select[data-scope="' + scope + '"]'));
+		var btn = document.querySelector('[data-bulk-delete-btn="' + scope + '"]');
+		var countEl = document.querySelector('[data-bulk-count="' + scope + '"]');
+
+		function refresh() {
+			var checked = boxes.filter(function (box) { return box.checked; });
+			selectAll.checked = checked.length > 0 && checked.length === boxes.length;
+			selectAll.indeterminate = checked.length > 0 && checked.length < boxes.length;
+			if (btn) btn.disabled = checked.length === 0;
+			if (countEl) countEl.textContent = checked.length;
+		}
+
+		selectAll.addEventListener("change", function () {
+			boxes.forEach(function (box) { box.checked = selectAll.checked; });
+			refresh();
+		});
+		boxes.forEach(function (box) { box.addEventListener("change", refresh); });
+		refresh();
+	});
+})();
+{{end}}

@@ -1,0 +1,50 @@
+{{define "content"}}
+{{with .Data}}
+{{if .Projects}}
+{{if not $.DisableDelete}}
+<form id="bulk-delete-projects-form" method="post" action="/projects/delete" data-confirm="Delete the selected projects and all their captured events?"></form>
+<div class="bulk-toolbar">
+	<button class="btn btn-danger" type="submit" form="bulk-delete-projects-form" data-bulk-delete-btn="projects" disabled>{{template "icon-trash"}}<span>Delete selected (<span data-bulk-count="projects">0</span>)</span></button>
+</div>
+{{end}}
+<div class="table-card">
+	<table>
+		<thead>
+		<tr>
+			{{if not $.DisableDelete}}<th class="col-select"><input type="checkbox" data-select-all="projects" aria-label="Select all projects"></th>{{end}}
+			<th>Project</th>
+			<th>Issues</th>
+			<th>Events</th>
+			<th>Last seen</th>
+			{{if not $.DisableDelete}}<th class="col-actions"></th>{{end}}
+		</tr>
+		</thead>
+		<tbody>
+		{{range .Projects}}
+		<tr>
+			{{if not $.DisableDelete}}<td class="col-select"><input type="checkbox" class="row-select" data-scope="projects" form="bulk-delete-projects-form" name="ids" value="{{.ProjectID}}" aria-label="Select project"></td>{{end}}
+			<td><a class="row-link" href="/projects/{{.ProjectID}}">{{.ProjectID}}</a></td>
+			<td>{{.Issues}}</td>
+			<td>{{.Events}}</td>
+			<td class="text-muted">{{.LastSeen}}</td>
+			{{if not $.DisableDelete}}
+			<td class="col-actions">
+				<form class="delete-form" method="post" action="/projects/{{.ProjectID}}/delete" data-confirm="Delete project {{.ProjectID}} and all its captured events?">
+					<button class="btn-icon btn-delete" type="submit" title="Delete project" aria-label="Delete project">{{template "icon-trash"}}</button>
+				</form>
+			</td>
+			{{end}}
+		</tr>
+		{{end}}
+		</tbody>
+	</table>
+</div>
+{{else}}
+<div class="empty-state">
+	{{template "icon-inbox"}}
+	<p class="empty-title">No events captured yet</p>
+	<p class="empty-hint">Point your Sentry SDK's DSN at this server and trigger an error.</p>
+</div>
+{{end}}
+{{end}}
+{{end}}
