@@ -44,16 +44,20 @@ var (
 // Page is the data every template execution starts from: shared chrome
 // (title, back link, subtitle, refresh) plus the page-specific Data payload.
 type Page struct {
-	Title       string
-	Subtitle    string
-	BackHref    string
-	BackLabel   string
-	AutoRefresh bool
-	Data        interface{}
+	Title         string
+	Subtitle      string
+	BackHref      string
+	BackLabel     string
+	AutoRefresh   bool
+	DisableDelete bool
+	Data          interface{}
 }
 
 type Handler struct {
 	Store *store.Store
+	// DisableDelete, when true, hides delete affordances in the dashboard
+	// and refuses to register the delete routes.
+	DisableDelete bool
 }
 
 type projectRow struct {
@@ -146,10 +150,15 @@ type detailView struct {
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", h.handleProjects)
 	mux.HandleFunc("GET /projects/{project_id}", h.handleProjectIssues)
-	mux.HandleFunc("POST /projects/{project_id}/delete", h.handleDeleteProject)
 	mux.HandleFunc("GET /events/{id}", h.handleDetail)
-	mux.HandleFunc("POST /events/{id}/delete", h.handleDeleteEvent)
 	mux.Handle("GET /static/", http.FileServerFS(staticFS))
+
+	if !h.DisableDelete {
+		mux.HandleFunc("POST /projects/delete", h.handleDeleteProjects)
+		mux.HandleFunc("POST /projects/{project_id}/delete", h.handleDeleteProject)
+		mux.HandleFunc("POST /projects/{project_id}/events/delete", h.handleDeleteEvents)
+		mux.HandleFunc("POST /events/{id}/delete", h.handleDeleteEvent)
+	}
 }
 
 func (h *Handler) handleProjects(writer http.ResponseWriter, request *http.Request) {
@@ -165,10 +174,11 @@ func (h *Handler) handleProjects(writer http.ResponseWriter, request *http.Reque
 	}
 
 	page := Page{
-		Title:       "error-logger",
-		Subtitle:    pluralize(len(rows), "project"),
-		AutoRefresh: true,
-		Data:        struct{ Projects []projectRow }{Projects: rows},
+		Title:         "error-logger",
+		Subtitle:      pluralize(len(rows), "project"),
+		AutoRefresh:   true,
+		DisableDelete: h.DisableDelete,
+		Data:          struct{ Projects []projectRow }{Projects: rows},
 	}
 
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -186,12 +196,16 @@ func (h *Handler) handleProjectIssues(writer http.ResponseWriter, request *http.
 	}
 
 	page := Page{
-		Title:       fmt.Sprintf("%s — error-logger", projectID),
-		Subtitle:    fmt.Sprintf("%s in %s", pluralize(len(rows), "issue"), projectID),
-		BackHref:    "/",
-		BackLabel:   "error-logger",
-		AutoRefresh: true,
-		Data:        struct{ Events []eventRow }{Events: rows},
+		Title:         fmt.Sprintf("%s — error-logger", projectID),
+		Subtitle:      fmt.Sprintf("%s in %s", pluralize(len(rows), "issue"), projectID),
+		BackHref:      "/",
+		BackLabel:     "error-logger",
+		AutoRefresh:   true,
+		DisableDelete: h.DisableDelete,
+		Data: struct {
+			Events    []eventRow
+			ProjectID string
+		}{Events: rows, ProjectID: projectID},
 	}
 
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -211,10 +225,11 @@ func (h *Handler) handleDetail(writer http.ResponseWriter, request *http.Request
 	detailViewData := buildDetailView(capturedEvent)
 
 	page := Page{
-		Title:     fmt.Sprintf("%s — error-logger", detailViewData.Summary),
-		BackHref:  "/projects/" + detailViewData.ProjectID,
-		BackLabel: detailViewData.ProjectID,
-		Data:      detailViewData,
+		Title:         fmt.Sprintf("%s — error-logger", detailViewData.Summary),
+		BackHref:      "/projects/" + detailViewData.ProjectID,
+		BackLabel:     detailViewData.ProjectID,
+		DisableDelete: h.DisableDelete,
+		Data:          detailViewData,
 	}
 
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -247,6 +262,40 @@ func (h *Handler) handleDeleteProject(writer http.ResponseWriter, request *http.
 	if _, err := h.Store.DeleteProject(projectID); err != nil {
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	http.Redirect(writer, request, "/", http.StatusSeeOther)
+}
+
+// handleDeleteEvents deletes a checked selection of issues within a single
+// project (the dashboard's multi-select bulk delete) and returns to that
+// project's issue list.
+func (h *Handler) handleDeleteEvents(writer http.ResponseWriter, request *http.Request) {
+	projectID := request.PathValue("project_id")
+	if err := request.ParseForm(); err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if ids := request.Form["ids"]; len(ids) > 0 {
+		if _, err := h.Store.DeleteEvents(ids); err != nil {
+			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	http.Redirect(writer, request, "/projects/"+projectID, http.StatusSeeOther)
+}
+
+// handleDeleteProjects deletes a checked selection of projects (the
+// dashboard's multi-select bulk delete) and returns to the project overview.
+func (h *Handler) handleDeleteProjects(writer http.ResponseWriter, request *http.Request) {
+	if err := request.ParseForm(); err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if ids := request.Form["ids"]; len(ids) > 0 {
+		if _, err := h.Store.DeleteProjects(ids); err != nil {
+			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 	http.Redirect(writer, request, "/", http.StatusSeeOther)
 }

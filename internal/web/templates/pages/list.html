@@ -1,32 +1,52 @@
 {{define "content"}}
 {{with .Data}}
 {{if .Events}}
-<table>
-	<tr>
-		<th>Time</th>
-		<th>Level</th>
-		<th>Kind</th>
-		<th>Summary</th>
-		<th>Seen</th>
-		<th></th>
-	</tr>
-	{{range .Events}}
-	<tr>
-		<td>{{.Time}}</td>
-		<td><span class="badge level-{{.Level}}">{{.Level}}</span></td>
-		<td>{{.Kind}}</td>
-		<td><a href="/events/{{.ID}}">{{.Summary}}</a></td>
-		<td>{{if gt .Count 1}}<span class="badge count">&times;{{.Count}}</span>{{else}}1{{end}}</td>
-		<td>
-			<form class="delete-form" method="post" action="/events/{{.ID}}/delete" onsubmit="return confirm('Delete this issue and all its captured occurrences?')">
-				<button class="btn-delete" type="submit">Delete</button>
-			</form>
-		</td>
-	</tr>
-	{{end}}
-</table>
+{{if not $.DisableDelete}}
+<form id="bulk-delete-events-form" method="post" action="/projects/{{.ProjectID}}/events/delete" data-confirm="Delete the selected issues and all their captured occurrences?"></form>
+<div class="bulk-toolbar">
+	<button class="btn btn-danger" type="submit" form="bulk-delete-events-form" data-bulk-delete-btn="events" disabled>{{template "icon-trash"}}<span>Delete selected (<span data-bulk-count="events">0</span>)</span></button>
+</div>
+{{end}}
+<div class="table-card">
+	<table>
+		<thead>
+		<tr>
+			{{if not $.DisableDelete}}<th class="col-select"><input type="checkbox" data-select-all="events" aria-label="Select all issues"></th>{{end}}
+			<th>Time</th>
+			<th>Level</th>
+			<th>Kind</th>
+			<th>Summary</th>
+			<th>Seen</th>
+			{{if not $.DisableDelete}}<th class="col-actions"></th>{{end}}
+		</tr>
+		</thead>
+		<tbody>
+		{{range .Events}}
+		<tr>
+			{{if not $.DisableDelete}}<td class="col-select"><input type="checkbox" class="row-select" data-scope="events" form="bulk-delete-events-form" name="ids" value="{{.ID}}" aria-label="Select issue"></td>{{end}}
+			<td class="text-muted nowrap">{{.Time}}</td>
+			<td><span class="badge level-{{.Level}}">{{.Level}}</span></td>
+			<td class="text-muted">{{.Kind}}</td>
+			<td><a class="row-link" href="/events/{{.ID}}">{{.Summary}}</a></td>
+			<td>{{if gt .Count 1}}<span class="badge count">&times;{{.Count}}</span>{{else}}<span class="text-muted">1</span>{{end}}</td>
+			{{if not $.DisableDelete}}
+			<td class="col-actions">
+				<form class="delete-form" method="post" action="/events/{{.ID}}/delete" data-confirm="Delete this issue and all its captured occurrences?">
+					<button class="btn-icon btn-delete" type="submit" title="Delete issue" aria-label="Delete issue">{{template "icon-trash"}}</button>
+				</form>
+			</td>
+			{{end}}
+		</tr>
+		{{end}}
+		</tbody>
+	</table>
+</div>
 {{else}}
-<p class="empty">No issues captured yet for this project.</p>
+<div class="empty-state">
+	{{template "icon-inbox"}}
+	<p class="empty-title">No issues captured yet</p>
+	<p class="empty-hint">Issues reported for this project will show up here.</p>
+</div>
 {{end}}
 {{end}}
 {{end}}

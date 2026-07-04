@@ -27,11 +27,13 @@ go run ./cmd/server
 
 **Available Flags:**
 
-| Flag         | Default | Description                                  |
-|--------------|---------|-----------------------------------------------|
-| `-addr`      | `:9000` | Address to listen on                          |
-| `-data-dir`  | `data`  | Directory for the `events.jsonl` database     |
-| `-capacity`  | `1000`  | Max events kept in memory for the dashboard   |
+| Flag                   | Default | Description                                          |
+|------------------------|---------|-------------------------------------------------------|
+| `-addr`                | `:9000` | Address to listen on                                   |
+| `-data-dir`            | `data`  | Directory for the `events.jsonl` database              |
+| `-capacity`            | `1000`  | Max events kept in memory for the dashboard            |
+| `-disable-delete`      | `false` | Disable deleting events/issues/projects from the dashboard |
+| `-disable-console-log` | `false` | Disable printing captured events to the console        |
 
 Once running, you can access the dashboard at: **http://localhost:9000/**
 

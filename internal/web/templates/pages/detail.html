@@ -1,21 +1,22 @@
 {{define "content"}}
 {{with .Data}}
 <div class="detail">
-	<h2>
-		<span class="badge level-{{.Level}}">{{.Level}}</span> {{.Summary}}
-		<form class="delete-form" method="post" action="/events/{{.ID}}/delete" onsubmit="return confirm('Delete this issue and all its captured occurrences?')">
-			<button class="btn-delete" type="submit">Delete</button>
+	<div class="detail-title-row">
+		<h2 class="detail-title"><span class="badge level-{{.Level}}">{{.Level}}</span> {{.Summary}}</h2>
+		{{if not $.DisableDelete}}
+		<form class="delete-form" method="post" action="/events/{{.ID}}/delete" data-confirm="Delete this issue and all its captured occurrences?">
+			<button class="btn btn-delete" type="submit">{{template "icon-trash"}}<span>Delete</span></button>
 		</form>
-	</h2>
+		{{end}}
+	</div>
 
-	<div class="field">
-		<div class="label">Received</div>
+	<div class="detail-card">
 		<div class="meta-line">
-			{{.Time}} &middot; project {{.ProjectID}} &middot; kind {{.Kind}} &middot; id {{.ID}}
+			<span>{{.Time}}</span> &middot; <span>project {{.ProjectID}}</span> &middot; <span>kind {{.Kind}}</span> &middot; <span>id {{.ID}}</span>
 			{{if gt .Count 1}}&middot; <span class="badge count">&times;{{.Count}}</span> seen, first at {{.FirstSeen}}{{end}}
 		</div>
 		{{if or .Environment .Release .ServerName .Platform .SDK}}
-		<div class="meta-line">
+		<div class="meta-line pill-row">
 			{{if .Environment}}<span class="pill">env: {{.Environment}}</span>{{end}}
 			{{if .Release}}<span class="pill">release: {{.Release}}</span>{{end}}
 			{{if .ServerName}}<span class="pill">server: {{.ServerName}}</span>{{end}}
@@ -27,126 +28,156 @@
 
 	{{if .Message}}
 	<div class="field">
-		<div class="label">Message</div>
-		<div>{{.Message}}</div>
+		<div class="section-title">Message</div>
+		<div class="detail-card">{{.Message}}</div>
 	</div>
 	{{end}}
 
 	{{range $i, $exc := .Exceptions}}
-	<div class="field exception">
-		<div class="label">
-			Exception{{if gt (len $.Data.Exceptions) 1}} {{add1 $i}} of {{len $.Data.Exceptions}}{{end}}
-			{{if $exc.Mechanism}}
-				{{if eq $exc.Mechanism.Handled "unhandled"}}<span class="pill pill-bad">unhandled</span>{{else if eq $exc.Mechanism.Handled "handled"}}<span class="pill pill-good">handled</span>{{end}}
-				{{if $exc.Mechanism.Type}}<span class="pill">{{$exc.Mechanism.Type}}</span>{{end}}
-			{{end}}
-		</div>
-		<div class="exc-title"><strong>{{$exc.Type}}</strong>: {{$exc.Value}}</div>
+	<div class="field">
+		<div class="exception">
+			<div class="exception-head">
+				<span class="section-title">
+					Exception{{if gt (len $.Data.Exceptions) 1}} {{add1 $i}} of {{len $.Data.Exceptions}}{{end}}
+				</span>
+				{{if $exc.Mechanism}}
+					{{if eq $exc.Mechanism.Handled "unhandled"}}<span class="pill pill-bad">unhandled</span>{{else if eq $exc.Mechanism.Handled "handled"}}<span class="pill pill-good">handled</span>{{end}}
+					{{if $exc.Mechanism.Type}}<span class="pill">{{$exc.Mechanism.Type}}</span>{{end}}
+				{{end}}
+			</div>
+			<div class="exc-title"><strong>{{$exc.Type}}</strong>: {{$exc.Value}}</div>
 
-		{{if $exc.Frames}}
-		<div class="stacktrace">
-			{{range $exc.Frames}}
-			<div class="frame {{if not .InApp}}frame-lib{{end}}">
-				<div class="frame-head">
-					{{if .InApp}}<span class="pill pill-inapp">app</span>{{end}}
-					<span class="fn">{{.Function}}</span> <span class="loc">({{.Location}})</span>
-				</div>
-				{{if .Lines}}
-				<div class="code">
-					{{range .Lines}}<div class="code-line{{if .Current}} current{{end}}"><span class="ln">{{.Num}}</span><span class="src">{{.Text}}</span></div>
+			{{if $exc.Frames}}
+			<div class="stacktrace">
+				{{range $exc.Frames}}
+				<div class="frame {{if not .InApp}}frame-lib{{end}}">
+					<div class="frame-head">
+						{{if .InApp}}<span class="pill pill-inapp">app</span>{{end}}
+						<span class="fn">{{.Function}}</span> <span class="loc">({{.Location}})</span>
+					</div>
+					{{if .Lines}}
+					<div class="code">
+						{{range .Lines}}<div class="code-line{{if .Current}} current{{end}}"><span class="ln">{{.Num}}</span><span class="src">{{.Text}}</span></div>
+						{{end}}
+					</div>
+					{{end}}
+					{{if .Vars}}
+					<details class="vars">
+						<summary>Local variables ({{len .Vars}})</summary>
+						<table class="kv">
+							{{range .Vars}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
+							{{end}}
+						</table>
+					</details>
 					{{end}}
 				</div>
-				{{end}}
-				{{if .Vars}}
-				<details class="vars">
-					<summary>Local variables ({{len .Vars}})</summary>
-					<table class="kv">
-						{{range .Vars}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
-						{{end}}
-					</table>
-				</details>
 				{{end}}
 			</div>
 			{{end}}
 		</div>
-		{{end}}
 	</div>
 	{{end}}
 
 	{{if .Tags}}
 	<div class="field">
-		<div class="label">Tags</div>
-		{{range $k, $v := .Tags}}<span class="tag">{{$k}}: {{$v}}</span>{{end}}
+		<div class="section-title">Tags</div>
+		<div class="detail-card">
+			{{range $k, $v := .Tags}}<span class="tag">{{$k}}: {{$v}}</span>{{end}}
+		</div>
 	</div>
 	{{end}}
 
 	{{if .Breadcrumbs}}
 	<div class="field">
-		<div class="label">Breadcrumbs</div>
-		{{range .Breadcrumbs}}
-		<div class="frame">
-			<span class="loc">{{.Time}} [{{.Category}}]</span> {{.Message}}
+		<div class="section-title">Breadcrumbs</div>
+		<div class="detail-card">
+			<div class="timeline">
+				{{range .Breadcrumbs}}
+				<div class="timeline-item">
+					<span class="timeline-dot"></span>
+					<div class="timeline-content">
+						<span class="loc">{{.Time}}</span> <span class="pill">{{.Category}}</span> {{.Message}}
+					</div>
+				</div>
+				{{end}}
+			</div>
 		</div>
-		{{end}}
 	</div>
 	{{end}}
 
 	{{if .User}}
 	<div class="field">
-		<div class="label">User</div>
-		<table class="kv">
-			{{range .User}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
-			{{end}}
-		</table>
+		<div class="section-title">User</div>
+		<div class="detail-card">
+			<table class="kv">
+				{{range .User}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
+				{{end}}
+			</table>
+		</div>
 	</div>
 	{{end}}
 
 	{{if .Request}}
 	<div class="field">
-		<div class="label">Request</div>
-		<table class="kv">
-			{{range .Request}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
-			{{end}}
-		</table>
+		<div class="section-title">Request</div>
+		<div class="detail-card">
+			<table class="kv">
+				{{range .Request}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
+				{{end}}
+			</table>
+		</div>
 	</div>
 	{{end}}
 
 	{{range .Contexts}}
 	<div class="field">
-		<div class="label">Context: {{.Name}}</div>
-		<table class="kv">
-			{{range .Fields}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
-			{{end}}
-		</table>
+		<div class="section-title">Context: {{.Name}}</div>
+		<div class="detail-card">
+			<table class="kv">
+				{{range .Fields}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
+				{{end}}
+			</table>
+		</div>
 	</div>
 	{{end}}
 
 	{{if .Extra}}
 	<div class="field">
-		<div class="label">Extra</div>
-		<table class="kv">
-			{{range .Extra}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
-			{{end}}
-		</table>
+		<div class="section-title">Extra</div>
+		<div class="detail-card">
+			<table class="kv">
+				{{range .Extra}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
+				{{end}}
+			</table>
+		</div>
 	</div>
 	{{end}}
 
 	{{if .Modules}}
 	<div class="field">
 		<details>
-			<summary class="label modules-summary">Modules ({{len .Modules}})</summary>
-			<table class="kv">
-				{{range .Modules}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
-				{{end}}
-			</table>
+			<summary class="section-title modules-summary">Modules ({{len .Modules}})</summary>
+			<div class="detail-card">
+				<table class="kv">
+					{{range .Modules}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
+					{{end}}
+				</table>
+			</div>
 		</details>
 	</div>
 	{{end}}
 
 	<div class="field">
 		<details>
-			<summary class="label">Raw Event JSON</summary>
-			<pre class="raw">{{.RawJSON}}</pre>
+			<summary class="section-title">Raw Event JSON</summary>
+			<div class="code-block">
+				<div class="code-toolbar">
+					<button type="button" class="btn-icon copy-btn" data-copy-target="raw-json" title="Copy JSON" aria-label="Copy JSON">
+						{{template "icon-copy"}}{{template "icon-check"}}
+					</button>
+				</div>
+				<pre class="raw" id="raw-json">{{.RawJSON}}</pre>
+			</div>
 		</details>
 	</div>
 </div>

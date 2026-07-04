@@ -1,6 +1,8 @@
 {{define "head"}}
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}}</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2 2 19.5h20L12 2z'/%3E%3Cline x1='12' y1='9' x2='12' y2='14'/%3E%3Cline x1='12' y1='17' x2='12.01' y2='17'/%3E%3C/svg%3E">
 {{if .AutoRefresh}}<meta http-equiv="refresh" content="5">{{end}}
 <script>{{template "theme-init-script"}}</script>
 <link rel="stylesheet" href="/static/style.css">
