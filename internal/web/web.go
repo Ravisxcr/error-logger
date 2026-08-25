@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -252,7 +253,7 @@ func (h *Handler) handleDeleteEvent(writer http.ResponseWriter, request *http.Re
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(writer, request, "/projects/"+capturedEvent.ProjectID, http.StatusSeeOther)
+	http.Redirect(writer, request, "/projects/"+url.PathEscape(capturedEvent.ProjectID), http.StatusSeeOther)
 }
 
 // handleDeleteProject deletes every captured row for a project and returns
@@ -281,7 +282,7 @@ func (h *Handler) handleDeleteEvents(writer http.ResponseWriter, request *http.R
 			return
 		}
 	}
-	http.Redirect(writer, request, "/projects/"+projectID, http.StatusSeeOther)
+	http.Redirect(writer, request, "/projects/"+url.PathEscape(capturedEvent.ProjectID), http.StatusSeeOther)
 }
 
 // handleDeleteProjects deletes a checked selection of projects (the
@@ -297,7 +298,7 @@ func (h *Handler) handleDeleteProjects(writer http.ResponseWriter, request *http
 			return
 		}
 	}
-	http.Redirect(writer, request, "/", http.StatusSeeOther)
+	http.Redirect(writer, request, "/projects/"+url.PathEscape(capturedEvent.ProjectID), http.StatusSeeOther)
 }
 
 // -----------------------------------------------------------------------------
@@ -413,8 +414,17 @@ func buildRequest(eventData *sentryevent.Event) []kv {
 func buildContexts(eventData *sentryevent.Event) []contextGroup {
 	var contextGroupsList []contextGroup
 	for _, name := range sortedKeys(eventData.Contexts) {
-		if contextMap, ok := eventData.Contexts[name].(map[string]interface{}); ok {
+		val := eventData.Contexts[name]
+		if val == nil {
+			continue
+		}
+		if contextMap, ok := val.(map[string]any); ok {
 			contextGroupsList = append(contextGroupsList, contextGroup{Name: name, Fields: toKV(contextMap)})
+		} else if b, err := json.Marshal(val); err == nil {
+			var m map[string]any
+			if err := json.Unmarshal(b, &m); err == nil {
+				contextGroupsList = append(contextGroupsList, contextGroup{Name: name, Fields: toKV(m)})
+			}
 		}
 	}
 	return contextGroupsList
@@ -454,14 +464,21 @@ func buildFrame(frameData sentryevent.Frame) frameView {
 	}
 
 	if frameData.ContextLine != "" || len(frameData.PreContext) > 0 || len(frameData.PostContext) > 0 {
-		start := frameData.Lineno - len(frameData.PreContext)
-		for lineIndex, contextText := range frameData.PreContext {
-			frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: start + lineIndex, Text: contextText})
-		}
-		frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno, Text: frameData.ContextLine, Current: true})
-		for lineIndex, contextText := range frameData.PostContext {
-			frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno + 1 + lineIndex, Text: contextText})
-		}
+		if frameData.Lineno > 0 {
+	    start := frameData.Lineno - len(frameData.PreContext)
+	    if start < 1 {
+	        start = 1
+	    }
+	    for lineIndex, contextText := range frameData.PreContext {
+	        frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: start + lineIndex, Text: contextText})
+	    }
+	    frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno, Text: frameData.ContextLine, Current: true})
+	    for lineIndex, contextText := range frameData.PostContext {
+	        frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno + 1 + lineIndex, Text: contextText})
+	    }
+			} else if frameData.ContextLine != "" {
+	    frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: 0, Text: frameData.ContextLine, Current: true})
+			}
 	}
 
 	if len(frameData.Vars) > 0 {
@@ -544,9 +561,17 @@ func summarize(capturedEvent store.Captured) eventRow {
 	}
 
 	switch {
-	case capturedEvent.Event.Exception != nil && len(capturedEvent.Event.Exception.Values) > 0:
-		exceptionVal := capturedEvent.Event.Exception.Values[len(capturedEvent.Event.Exception.Values)-1]
-		row.Summary = fmt.Sprintf("%s: %s", exceptionVal.Type, exceptionVal.Value)
+		case capturedEvent.Event.Exception != nil && len(capturedEvent.Event.Exception.Values) > 0:
+	    exceptionVal := capturedEvent.Event.Exception.Values[len(capturedEvent.Event.Exception.Values)-1]
+	    if exceptionVal.Type != "" && exceptionVal.Value != "" {
+	        row.Summary = fmt.Sprintf("%s: %s", exceptionVal.Type, exceptionVal.Value)
+	    } else if exceptionVal.Type != "" {
+	        row.Summary = exceptionVal.Type
+	    } else if exceptionVal.Value != "" {
+	        row.Summary = exceptionVal.Value
+	    } else {
+	        row.Summary = "<unhandled exception>"
+	    }
 	case capturedEvent.Event.MessageText() != "":
 		row.Summary = capturedEvent.Event.MessageText()
 	case capturedEvent.Event.Transaction != "":

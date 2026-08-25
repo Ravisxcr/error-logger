@@ -18,8 +18,7 @@ import (
 )
 
 // Captured is one stored event, either a full error/message event or a
-// lighter-weight record for envelope item types we don't fully model
-// (transaction, session, profile, ...).
+// lighter-weight record for envelope item types we don't fully model.
 type Captured struct {
 	ID         string             `json:"id"`
 	ProjectID  string             `json:"project_id"`
@@ -34,31 +33,27 @@ type Captured struct {
 // Store holds a bounded in-memory history plus a durable JSONL log.
 type Store struct {
 	mu       sync.RWMutex
-	items    []Captured // newest last
-	byID     map[string]int
-	byGroup  map[string]int
+	items    []Captured     // newest last
+	byID     map[string]int // id -> slice index
+	byGroup  map[string]int // projectID:groupKey -> slice index
 	capacity int
 	file     *os.File
 }
 
 // Open creates (or appends to) dataDir/events.jsonl and returns a Store
-// with the given in-memory capacity (oldest events are evicted from memory
-// once exceeded; the file keeps the full history). Any events already in
-// the log from a previous run are replayed into memory first, so the
-// dashboard shows prior history immediately instead of appearing empty
-// until the next event arrives.
+// with the given in-memory capacity.
 func Open(dataDir string, capacity int) (*Store, error) {
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
 
 	path := filepath.Join(dataDir, "events.jsonl")
-	store := &Store{
+	s := &Store{
 		byID:     make(map[string]int),
 		byGroup:  make(map[string]int),
 		capacity: capacity,
 	}
-	if err := store.replay(path); err != nil {
+	if err := s.replay(path); err != nil {
 		return nil, fmt.Errorf("replay events log: %w", err)
 	}
 
@@ -66,14 +61,13 @@ func Open(dataDir string, capacity int) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open events log: %w", err)
 	}
-	store.file = file
-	return store, nil
+	s.file = file
+	return s, nil
 }
 
 // replay reads an existing events.jsonl (if any) and feeds each line back
-// through the same in-memory merge logic Add uses, without re-appending to
-// the file. Malformed lines are skipped rather than failing startup.
-func (store *Store) replay(path string) error {
+// through the in-memory merge logic without re-appending to the file.
+func (s *Store) replay(path string) error {
 	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -94,24 +88,24 @@ func (store *Store) replay(path string) error {
 		if err := json.Unmarshal(line, &capturedEvent); err != nil {
 			continue
 		}
-		store.insert(capturedEvent)
+		s.insert(capturedEvent)
 	}
 	return scanner.Err()
 }
 
-func (store *Store) Close() error {
-	return store.file.Close()
+func (s *Store) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.file != nil {
+		return s.file.Close()
+	}
+	return nil
 }
 
-// Add records a captured event. If c.GroupKey is non-empty and matches an
-// already-held entry, that entry's Count is incremented and bumped to the
-// most-recently-seen position instead of appending a new row -- this is what
-// mirrors Sentry's issue grouping, collapsing repeated occurrences of the
-// same error into one entry with a running count rather than a new line
-// every time. It returns the stored entry and whether it was newly created.
-// The durable JSONL log still gets one line per occurrence either way, so
-// full history is never lost.
-func (store *Store) Add(capturedEvent Captured) (Captured, bool, error) {
+// Add records a captured event. If it belongs to an existing issue group,
+// its in-memory occurrence count is incremented and bumped to the newest slot.
+// The raw incoming event is always written to disk to preserve occurrence history.
+func (s *Store) Add(capturedEvent Captured) (Captured, bool, error) {
 	if capturedEvent.Count == 0 {
 		capturedEvent.Count = 1
 	}
@@ -119,112 +113,129 @@ func (store *Store) Add(capturedEvent Captured) (Captured, bool, error) {
 		capturedEvent.LastSeen = capturedEvent.ReceivedAt
 	}
 
-	store.mu.Lock()
-	defer store.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	stored, isNew := store.insert(capturedEvent)
-	if err := store.appendLine(stored); err != nil {
-		return stored, isNew, err
+	// Persist the actual incoming occurrence line to the log
+	if err := s.appendLine(capturedEvent); err != nil {
+		return capturedEvent, false, err
 	}
+
+	stored, isNew := s.insert(capturedEvent)
 	return stored, isNew, nil
 }
 
-// insert merges capturedEvent into the in-memory items (mirroring Sentry's issue
-// grouping) without touching the durable log; used by both Add and replay.
-// Callers must hold store.mu.
-func (store *Store) insert(capturedEvent Captured) (Captured, bool) {
-	if capturedEvent.GroupKey != "" {
-		if index, ok := store.byGroup[capturedEvent.GroupKey]; ok {
-			existing := store.items[index]
-			existing.Count++
+// compositeGroupKey guarantees per-project isolation for issue grouping.
+func compositeGroupKey(projectID, groupKey string) string {
+	if groupKey == "" {
+		return ""
+	}
+	return projectID + "\x00" + groupKey
+}
+
+// insert merges capturedEvent into in-memory items. Callers must hold s.mu.
+func (s *Store) insert(capturedEvent Captured) (Captured, bool) {
+	compKey := compositeGroupKey(capturedEvent.ProjectID, capturedEvent.GroupKey)
+	if compKey != "" {
+		if index, ok := s.byGroup[compKey]; ok {
+			existing := s.items[index]
+			existing.Count += capturedEvent.Count
 			existing.LastSeen = capturedEvent.LastSeen
-			store.items = append(store.items[:index], store.items[index+1:]...)
-			store.items = append(store.items, existing)
-			store.reindex()
+			// Keep the latest payload/stack trace snapshot in memory for UI inspection
+			if capturedEvent.Event != nil {
+				existing.Event = capturedEvent.Event
+			}
+
+			// Move to newest (end of slice)
+			s.items = append(s.items[:index], s.items[index+1:]...)
+			s.items = append(s.items, existing)
+			s.reindex()
 			return existing, false
 		}
 	}
 
-	store.items = append(store.items, capturedEvent)
-	if len(store.items) > store.capacity {
-		store.items = store.items[len(store.items)-store.capacity:]
+	s.items = append(s.items, capturedEvent)
+	if len(s.items) > s.capacity {
+		evictCount := len(s.items) - s.capacity
+		// Zero out evicted elements before slicing so GC can reclaim pointers immediately
+		for i := 0; i < evictCount; i++ {
+			s.items[i] = Captured{}
+		}
+		s.items = s.items[evictCount:]
 	}
-	store.reindex()
+	s.reindex()
 	return capturedEvent, true
 }
 
-// reindex rebuilds byID/byGroup from scratch after items has been mutated
-// (eviction or a group bump reordering entries).
-func (store *Store) reindex() {
-	store.byID = make(map[string]int, store.capacity)
-	store.byGroup = make(map[string]int, store.capacity)
-	for index, item := range store.items {
-		store.byID[item.ID] = index
-		if item.GroupKey != "" {
-			store.byGroup[item.GroupKey] = index
+// reindex rebuilds byID and byGroup indexes.
+func (s *Store) reindex() {
+	s.byID = make(map[string]int, len(s.items))
+	s.byGroup = make(map[string]int, len(s.items))
+	for index, item := range s.items {
+		s.byID[item.ID] = index
+		if key := compositeGroupKey(item.ProjectID, item.GroupKey); key != "" {
+			s.byGroup[key] = index
 		}
 	}
 }
 
-func (store *Store) appendLine(capturedEvent Captured) error {
+func (s *Store) appendLine(capturedEvent Captured) error {
 	line, err := json.Marshal(capturedEvent)
 	if err != nil {
 		return fmt.Errorf("marshal event: %w", err)
 	}
 	line = append(line, '\n')
-	if _, err := store.file.Write(line); err != nil {
+	if _, err := s.file.Write(line); err != nil {
 		return fmt.Errorf("write event log: %w", err)
 	}
 	return nil
 }
 
 // List returns captured events, newest first.
-func (store *Store) List() []Captured {
-	store.mu.RLock()
-	defer store.mu.RUnlock()
-	events := make([]Captured, len(store.items))
-	for index, item := range store.items {
-		events[len(store.items)-1-index] = item
+func (s *Store) List() []Captured {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	events := make([]Captured, len(s.items))
+	for index, item := range s.items {
+		events[len(s.items)-1-index] = item
 	}
 	return events
 }
 
 // Get looks up a single captured event by ID.
-func (store *Store) Get(id string) (Captured, bool) {
-	store.mu.RLock()
-	defer store.mu.RUnlock()
-	index, ok := store.byID[id]
+func (s *Store) Get(id string) (Captured, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	index, ok := s.byID[id]
 	if !ok {
 		return Captured{}, false
 	}
-	return store.items[index], true
+	return s.items[index], true
 }
 
 // Count returns the number of events currently held in memory.
-func (store *Store) Count() int {
-	store.mu.RLock()
-	defer store.mu.RUnlock()
-	return len(store.items)
+func (s *Store) Count() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.items)
 }
 
-// ProjectSummary aggregates the issues captured for a single project, for
-// the top-level project overview page.
+// ProjectSummary aggregates the issues captured for a single project.
 type ProjectSummary struct {
 	ProjectID string
-	Issues    int // distinct rows: grouped issues plus ungrouped items
-	Events    int // total occurrences, including grouped repeats
+	Issues    int
+	Events    int
 	LastSeen  time.Time
 }
 
-// Projects returns a summary per distinct project ID, most recently seen
-// first.
-func (store *Store) Projects() []ProjectSummary {
-	store.mu.RLock()
-	defer store.mu.RUnlock()
+// Projects returns a summary per distinct project ID, most recently seen first.
+func (s *Store) Projects() []ProjectSummary {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	byProject := make(map[string]*ProjectSummary)
 	var order []string
-	for _, item := range store.items {
+	for _, item := range s.items {
 		summary, ok := byProject[item.ProjectID]
 		if !ok {
 			summary = &ProjectSummary{ProjectID: item.ProjectID}
@@ -247,104 +258,134 @@ func (store *Store) Projects() []ProjectSummary {
 }
 
 // ListByProject returns captured events for a single project, newest first.
-func (store *Store) ListByProject(projectID string) []Captured {
-	store.mu.RLock()
-	defer store.mu.RUnlock()
+func (s *Store) ListByProject(projectID string) []Captured {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var events []Captured
-	for index := len(store.items) - 1; index >= 0; index-- {
-		if store.items[index].ProjectID == projectID {
-			events = append(events, store.items[index])
+	for index := len(s.items) - 1; index >= 0; index-- {
+		if s.items[index].ProjectID == projectID {
+			events = append(events, s.items[index])
 		}
 	}
 	return events
 }
 
-// DeleteEvent removes a single captured row by ID. See DeleteEvents.
-func (store *Store) DeleteEvent(id string) (bool, error) {
-	deletedCount, err := store.DeleteEvents([]string{id})
+// DeleteEvent removes a single captured row by ID.
+func (s *Store) DeleteEvent(id string) (bool, error) {
+	deletedCount, err := s.DeleteEvents([]string{id})
 	return deletedCount > 0, err
 }
 
-// DeleteEvents removes every captured row whose ID is in eventIDs from memory
-// and from the durable log. Since grouped issues share one ID across every
-// occurrence line (see insert), this drops each issue's whole history, not
-// just its latest occurrence. Reports how many rows were deleted.
-func (store *Store) DeleteEvents(eventIDs []string) (int, error) {
-	set := make(map[string]bool, len(eventIDs))
+// DeleteEvents removes captured events matching eventIDs or their associated groups.
+func (s *Store) DeleteEvents(eventIDs []string) (int, error) {
+	idSet := make(map[string]bool, len(eventIDs))
 	for _, id := range eventIDs {
-		set[id] = true
+		idSet[id] = true
 	}
 
-	store.mu.Lock()
-	defer store.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	keptEvents := store.items[:0]
+	// Find any project+group pairings associated with these IDs to ensure full issue deletion
+	groupSet := make(map[string]bool)
+	for _, item := range s.items {
+		if idSet[item.ID] && item.GroupKey != "" {
+			groupSet[compositeGroupKey(item.ProjectID, item.GroupKey)] = true
+		}
+	}
+
+	keptEvents := s.items[:0]
 	removedCount := 0
-	for _, item := range store.items {
-		if set[item.ID] {
+	for _, item := range s.items {
+		isTarget := idSet[item.ID] || (item.GroupKey != "" && groupSet[compositeGroupKey(item.ProjectID, item.GroupKey)])
+		if isTarget {
 			removedCount++
 			continue
 		}
 		keptEvents = append(keptEvents, item)
 	}
-	store.items = keptEvents
-	store.reindex()
+
+	// Zero out vacated slice elements
+	for i := len(keptEvents); i < len(s.items); i++ {
+		s.items[i] = Captured{}
+	}
+	s.items = keptEvents
+	s.reindex()
 
 	if removedCount == 0 {
 		return 0, nil
 	}
-	if err := store.rewriteLog(func(capturedEvent Captured) bool { return !set[capturedEvent.ID] }); err != nil {
+
+	err := s.rewriteLogStream(func(c Captured) bool {
+		if idSet[c.ID] {
+			return false
+		}
+		if c.GroupKey != "" && groupSet[compositeGroupKey(c.ProjectID, c.GroupKey)] {
+			return false
+		}
+		return true
+	})
+	if err != nil {
 		return removedCount, err
 	}
 	return removedCount, nil
 }
 
-// DeleteProject removes every captured row for projectID. See DeleteProjects.
-func (store *Store) DeleteProject(projectID string) (int, error) {
-	return store.DeleteProjects([]string{projectID})
+// DeleteProject removes every captured row for projectID.
+func (s *Store) DeleteProject(projectID string) (int, error) {
+	return s.DeleteProjects([]string{projectID})
 }
 
-// DeleteProjects removes every captured row whose project ID is in
-// projectIDs from memory and from the durable log. Reports how many rows
-// were deleted.
-func (store *Store) DeleteProjects(projectIDs []string) (int, error) {
+// DeleteProjects removes every captured row whose project ID is in projectIDs.
+func (s *Store) DeleteProjects(projectIDs []string) (int, error) {
 	set := make(map[string]bool, len(projectIDs))
 	for _, id := range projectIDs {
 		set[id] = true
 	}
 
-	store.mu.Lock()
-	defer store.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	keptEvents := store.items[:0]
+	keptEvents := s.items[:0]
 	removedCount := 0
-	for _, item := range store.items {
+	for _, item := range s.items {
 		if set[item.ProjectID] {
 			removedCount++
 			continue
 		}
 		keptEvents = append(keptEvents, item)
 	}
-	store.items = keptEvents
-	store.reindex()
+
+	for i := len(keptEvents); i < len(s.items); i++ {
+		s.items[i] = Captured{}
+	}
+	s.items = keptEvents
+	s.reindex()
 
 	if removedCount == 0 {
 		return 0, nil
 	}
-	if err := store.rewriteLog(func(capturedEvent Captured) bool { return !set[capturedEvent.ProjectID] }); err != nil {
+
+	err := s.rewriteLogStream(func(c Captured) bool {
+		return !set[c.ProjectID]
+	})
+	if err != nil {
 		return removedCount, err
 	}
 	return removedCount, nil
 }
 
-// rewriteLog regenerates events.jsonl keeping only the lines for which keep
-// returns true. The log is otherwise append-only, so deletion is the one
-// case that needs a full rewrite; callers must hold store.mu.
-func (store *Store) rewriteLog(keep func(Captured) bool) error {
-	path := store.file.Name()
+// rewriteLogStream streams the existing log file through a filter into a temporary
+// file line-by-line, avoiding loading the entire file into memory. Callers must hold s.mu.
+func (s *Store) rewriteLogStream(keep func(Captured) bool) error {
+	path := s.file.Name()
 
-	var keptLines [][]byte
-	if err := func() error {
+	if err := s.file.Close(); err != nil {
+		return fmt.Errorf("close current log: %w", err)
+	}
+
+	tmpPath := path + ".tmp"
+	rewriteErr := func() error {
 		inputFile, err := os.Open(path)
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
@@ -354,8 +395,16 @@ func (store *Store) rewriteLog(keep func(Captured) bool) error {
 		}
 		defer inputFile.Close()
 
+		outputFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+		if err != nil {
+			return err
+		}
+		defer outputFile.Close()
+
+		writer := bufio.NewWriter(outputFile)
 		scanner := bufio.NewScanner(inputFile)
 		scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
+
 		for scanner.Scan() {
 			line := scanner.Bytes()
 			if len(line) == 0 {
@@ -366,35 +415,29 @@ func (store *Store) rewriteLog(keep func(Captured) bool) error {
 				continue
 			}
 			if keep(capturedEvent) {
-				keptLines = append(keptLines, append([]byte(nil), line...))
+				if _, err := writer.Write(line); err != nil {
+					return err
+				}
+				if err := writer.WriteByte('\n'); err != nil {
+					return err
+				}
 			}
 		}
-		return scanner.Err()
-	}(); err != nil {
-		return fmt.Errorf("read events log: %w", err)
-	}
-
-	if err := store.file.Close(); err != nil {
-		return fmt.Errorf("close events log: %w", err)
-	}
-
-	tmpPath := path + ".tmp"
-	outputFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-	if err != nil {
-		return fmt.Errorf("create temp log: %w", err)
-	}
-	for _, line := range keptLines {
-		if _, err := outputFile.Write(line); err == nil {
-			_, err = outputFile.Write([]byte("\n"))
-		} else {
-			outputFile.Close()
-			return fmt.Errorf("write temp log: %w", err)
+		if err := scanner.Err(); err != nil {
+			return err
 		}
+		return writer.Flush()
+	}()
+
+	if rewriteErr != nil {
+		// Reopen original file on failure
+		s.file, _ = os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("stream rewrite failed: %w", rewriteErr)
 	}
-	if err := outputFile.Close(); err != nil {
-		return fmt.Errorf("write temp log: %w", err)
-	}
+
 	if err := os.Rename(tmpPath, path); err != nil {
+		s.file, _ = os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 		return fmt.Errorf("replace events log: %w", err)
 	}
 
@@ -402,6 +445,6 @@ func (store *Store) rewriteLog(keep func(Captured) bool) error {
 	if err != nil {
 		return fmt.Errorf("reopen events log: %w", err)
 	}
-	store.file = file
+	s.file = file
 	return nil
 }

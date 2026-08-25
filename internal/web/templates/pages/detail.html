@@ -33,19 +33,28 @@
 	</div>
 	{{end}}
 
+	{{$totalExceptions := len .Exceptions}}
 	{{range $i, $exc := .Exceptions}}
 	<div class="field">
 		<div class="exception">
 			<div class="exception-head">
 				<span class="section-title">
-					Exception{{if gt (len $.Data.Exceptions) 1}} {{add1 $i}} of {{len $.Data.Exceptions}}{{end}}
+					Exception{{if gt $totalExceptions 1}} {{add1 $i}} of {{$totalExceptions}}{{end}}
 				</span>
 				{{if $exc.Mechanism}}
 					{{if eq $exc.Mechanism.Handled "unhandled"}}<span class="pill pill-bad">unhandled</span>{{else if eq $exc.Mechanism.Handled "handled"}}<span class="pill pill-good">handled</span>{{end}}
 					{{if $exc.Mechanism.Type}}<span class="pill">{{$exc.Mechanism.Type}}</span>{{end}}
 				{{end}}
 			</div>
-			<div class="exc-title"><strong>{{$exc.Type}}</strong>: {{$exc.Value}}</div>
+			<div class="exc-title">
+				{{if and $exc.Type $exc.Value}}
+					<strong>{{$exc.Type}}</strong>: {{$exc.Value}}
+				{{else if $exc.Type}}
+					<strong>{{$exc.Type}}</strong>
+				{{else}}
+					{{$exc.Value}}
+				{{end}}
+			</div>
 
 			{{if $exc.Frames}}
 			<div class="stacktrace">
@@ -96,7 +105,7 @@
 				<div class="timeline-item">
 					<span class="timeline-dot"></span>
 					<div class="timeline-content">
-						<span class="loc">{{.Time}}</span> <span class="pill">{{.Category}}</span> {{.Message}}
+						<span class="loc">{{.Time}}</span> {{if .Category}}<span class="pill">{{.Category}}</span>{{end}} {{.Message}}
 					</div>
 				</div>
 				{{end}}
