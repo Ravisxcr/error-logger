@@ -17,9 +17,6 @@ coverage.*
 *.coverprofile
 profile.cov
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
 # Go workspace file
 go.work
 go.work.sum
@@ -30,10 +27,19 @@ go.work.sum
 # captured events (runtime output)
 /data/
 
+# Dependency directories
+# vendor/
+node_modules/
+nodemodules/
+
+# Python
+.venv/
+.venv
+__pycache__/
+
 # Editor/IDE
 .idea/
 .vscode/
-.venv/
 .claude/
-__pycache__/
+
 
