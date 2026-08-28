@@ -282,7 +282,7 @@ func (h *Handler) handleDeleteEvents(writer http.ResponseWriter, request *http.R
 			return
 		}
 	}
-	http.Redirect(writer, request, "/projects/"+url.PathEscape(capturedEvent.ProjectID), http.StatusSeeOther)
+	http.Redirect(writer, request, "/projects/"+url.PathEscape(projectID), http.StatusSeeOther)
 }
 
 // handleDeleteProjects deletes a checked selection of projects (the
@@ -298,7 +298,7 @@ func (h *Handler) handleDeleteProjects(writer http.ResponseWriter, request *http
 			return
 		}
 	}
-	http.Redirect(writer, request, "/projects/"+url.PathEscape(capturedEvent.ProjectID), http.StatusSeeOther)
+	http.Redirect(writer, request, "/", http.StatusSeeOther)
 }
 
 // -----------------------------------------------------------------------------
