@@ -35,3 +35,43 @@
 	});
 })();
 {{end}}
+
+{{define "highlight-json-script"}}
+(function () {
+	function highlightJSON(jsonStr) {
+		if (!jsonStr) return "";
+		var html = jsonStr
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;");
+
+		return html.replace(
+			/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b|[{}\[\],])/g,
+			function (match) {
+				if (match === "{" || match === "}" || match === "[" || match === "]" || match === ",") {
+					return '<span class="json-punct">' + match + '</span>';
+				}
+				if (/^"/.test(match)) {
+					if (/:$/.test(match.trim())) {
+						var keyPart = match.slice(0, match.lastIndexOf('"') + 1);
+						var rest = match.slice(match.lastIndexOf('"') + 1);
+						return '<span class="json-key">' + keyPart + '</span><span class="json-punct">' + rest + '</span>';
+					}
+					return '<span class="json-string">' + match + '</span>';
+				}
+				if (match === "true" || match === "false") {
+					return '<span class="json-boolean">' + match + '</span>';
+				}
+				if (match === "null") {
+					return '<span class="json-null">' + match + '</span>';
+				}
+				return '<span class="json-number">' + match + '</span>';
+			}
+		);
+	}
+
+	document.querySelectorAll("[data-highlight-json]").forEach(function (el) {
+		el.innerHTML = highlightJSON(el.textContent);
+	});
+})();
+{{end}}

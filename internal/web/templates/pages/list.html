@@ -12,11 +12,11 @@
 		<thead>
 		<tr>
 			{{if not $.DisableDelete}}<th class="col-select"><input type="checkbox" data-select-all="events" aria-label="Select all issues"></th>{{end}}
-			<th>Time</th>
-			<th>Level</th>
-			<th>Kind</th>
-			<th>Summary</th>
-			<th>Seen</th>
+			<th><span class="th-content">{{template "icon-clock"}}<span>Time</span></span></th>
+			<th><span class="th-content">{{template "icon-alert"}}<span>Level</span></span></th>
+			<th><span class="th-content">{{template "icon-tag"}}<span>Kind</span></span></th>
+			<th><span class="th-content">{{template "icon-bug"}}<span>Summary</span></span></th>
+			<th><span class="th-content">{{template "icon-eye"}}<span>Seen</span></span></th>
 			{{if not $.DisableDelete}}<th class="col-actions"></th>{{end}}
 		</tr>
 		</thead>
@@ -24,11 +24,11 @@
 		{{range .Events}}
 		<tr>
 			{{if not $.DisableDelete}}<td class="col-select"><input type="checkbox" class="row-select" data-scope="events" form="bulk-delete-events-form" name="ids" value="{{.ID}}" aria-label="Select issue"></td>{{end}}
-			<td class="text-muted nowrap">{{.Time}}</td>
-			<td><span class="badge level-{{.Level}}">{{.Level}}</span></td>
-			<td class="text-muted">{{.Kind}}</td>
-			<td><a class="row-link" href="/events/{{.ID}}">{{.Summary}}</a></td>
-			<td>{{if gt .Count 1}}<span class="badge count">&times;{{.Count}}</span>{{else}}<span class="text-muted">1</span>{{end}}</td>
+			<td class="text-muted nowrap"><span class="meta-time">{{template "icon-clock"}}<span>{{.Time}}</span></span></td>
+			<td><span class="badge level-{{.Level}}">{{template "icon-alert"}}{{.Level}}</span></td>
+			<td class="text-muted"><span class="kind-pill">{{template "icon-tag"}}<span>{{.Kind}}</span></span></td>
+			<td><a class="row-link issue-link" href="/events/{{.ID}}">{{template "icon-bug"}}<span>{{.Summary}}</span></a></td>
+			<td>{{if gt .Count 1}}<span class="badge count">{{template "icon-activity"}}&times;{{.Count}}</span>{{else}}<span class="text-muted">1</span>{{end}}</td>
 			{{if not $.DisableDelete}}
 			<td class="col-actions">
 				<form class="delete-form" method="post" action="/events/{{.ID}}/delete" data-confirm="Delete this issue and all its captured occurrences?">

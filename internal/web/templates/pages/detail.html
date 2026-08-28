@@ -2,7 +2,7 @@
 {{with .Data}}
 <div class="detail">
 	<div class="detail-title-row">
-		<h2 class="detail-title"><span class="badge level-{{.Level}}">{{.Level}}</span> {{.Summary}}</h2>
+		<h2 class="detail-title"><span class="badge level-{{.Level}}">{{template "icon-alert"}}{{.Level}}</span> {{.Summary}}</h2>
 		{{if not $.DisableDelete}}
 		<form class="delete-form" method="post" action="/events/{{.ID}}/delete" data-confirm="Delete this issue and all its captured occurrences?">
 			<button class="btn btn-delete" type="submit">{{template "icon-trash"}}<span>Delete</span></button>
@@ -12,23 +12,23 @@
 
 	<div class="detail-card">
 		<div class="meta-line">
-			<span>{{.Time}}</span> &middot; <span>project {{.ProjectID}}</span> &middot; <span>kind {{.Kind}}</span> &middot; <span>id {{.ID}}</span>
-			{{if gt .Count 1}}&middot; <span class="badge count">&times;{{.Count}}</span> seen, first at {{.FirstSeen}}{{end}}
+			<span class="meta-item">{{template "icon-clock"}}<span>{{.Time}}</span></span> &middot; <span class="meta-item">{{template "icon-folder"}}<span>project {{.ProjectID}}</span></span> &middot; <span class="meta-item">{{template "icon-tag"}}<span>kind {{.Kind}}</span></span> &middot; <span class="meta-item">{{template "icon-hash"}}<span>id {{.ID}}</span></span>
+			{{if gt .Count 1}}&middot; <span class="badge count">{{template "icon-activity"}}&times;{{.Count}}</span> seen, first at {{.FirstSeen}}{{end}}
 		</div>
 		{{if or .Environment .Release .ServerName .Platform .SDK}}
 		<div class="meta-line pill-row">
-			{{if .Environment}}<span class="pill">env: {{.Environment}}</span>{{end}}
-			{{if .Release}}<span class="pill">release: {{.Release}}</span>{{end}}
-			{{if .ServerName}}<span class="pill">server: {{.ServerName}}</span>{{end}}
-			{{if .Platform}}<span class="pill">platform: {{.Platform}}</span>{{end}}
-			{{if .SDK}}<span class="pill">sdk: {{.SDK}}</span>{{end}}
+			{{if .Environment}}<span class="pill">{{template "icon-terminal"}}<span>env: {{.Environment}}</span></span>{{end}}
+			{{if .Release}}<span class="pill">{{template "icon-git-branch"}}<span>release: {{.Release}}</span></span>{{end}}
+			{{if .ServerName}}<span class="pill">{{template "icon-server"}}<span>server: {{.ServerName}}</span></span>{{end}}
+			{{if .Platform}}<span class="pill">{{template "icon-cpu"}}<span>platform: {{.Platform}}</span></span>{{end}}
+			{{if .SDK}}<span class="pill">{{template "icon-package"}}<span>sdk: {{.SDK}}</span></span>{{end}}
 		</div>
 		{{end}}
 	</div>
 
 	{{if .Message}}
 	<div class="field">
-		<div class="section-title">Message</div>
+		<div class="section-title">{{template "icon-message"}}<span>Message</span></div>
 		<div class="detail-card">{{.Message}}</div>
 	</div>
 	{{end}}
@@ -39,7 +39,7 @@
 		<div class="exception">
 			<div class="exception-head">
 				<span class="section-title">
-					Exception{{if gt $totalExceptions 1}} {{add1 $i}} of {{$totalExceptions}}{{end}}
+					{{template "icon-bug"}}<span>Exception{{if gt $totalExceptions 1}} {{add1 $i}} of {{$totalExceptions}}{{end}}</span>
 				</span>
 				{{if $exc.Mechanism}}
 					{{if eq $exc.Mechanism.Handled "unhandled"}}<span class="pill pill-bad">unhandled</span>{{else if eq $exc.Mechanism.Handled "handled"}}<span class="pill pill-good">handled</span>{{end}}
@@ -61,7 +61,7 @@
 				{{range $exc.Frames}}
 				<div class="frame {{if not .InApp}}frame-lib{{end}}">
 					<div class="frame-head">
-						{{if .InApp}}<span class="pill pill-inapp">app</span>{{end}}
+						{{if .InApp}}<span class="pill pill-inapp">{{template "icon-code"}}app</span>{{end}}
 						<span class="fn">{{.Function}}</span> <span class="loc">({{.Location}})</span>
 					</div>
 					{{if .Lines}}
@@ -72,7 +72,7 @@
 					{{end}}
 					{{if .Vars}}
 					<details class="vars">
-						<summary>Local variables ({{len .Vars}})</summary>
+						<summary class="summary-content">{{template "icon-chevron-right"}}<span>Local variables ({{len .Vars}})</span></summary>
 						<table class="kv">
 							{{range .Vars}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
 							{{end}}
@@ -89,7 +89,7 @@
 
 	{{if .Tags}}
 	<div class="field">
-		<div class="section-title">Tags</div>
+		<div class="section-title">{{template "icon-tag"}}<span>Tags</span></div>
 		<div class="detail-card">
 			{{range $k, $v := .Tags}}<span class="tag">{{$k}}: {{$v}}</span>{{end}}
 		</div>
@@ -98,7 +98,7 @@
 
 	{{if .Breadcrumbs}}
 	<div class="field">
-		<div class="section-title">Breadcrumbs</div>
+		<div class="section-title">{{template "icon-list"}}<span>Breadcrumbs</span></div>
 		<div class="detail-card">
 			<div class="timeline">
 				{{range .Breadcrumbs}}
@@ -116,7 +116,7 @@
 
 	{{if .User}}
 	<div class="field">
-		<div class="section-title">User</div>
+		<div class="section-title">{{template "icon-user"}}<span>User</span></div>
 		<div class="detail-card">
 			<table class="kv">
 				{{range .User}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
@@ -128,7 +128,7 @@
 
 	{{if .Request}}
 	<div class="field">
-		<div class="section-title">Request</div>
+		<div class="section-title">{{template "icon-globe"}}<span>Request</span></div>
 		<div class="detail-card">
 			<table class="kv">
 				{{range .Request}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
@@ -140,7 +140,7 @@
 
 	{{range .Contexts}}
 	<div class="field">
-		<div class="section-title">Context: {{.Name}}</div>
+		<div class="section-title">{{template "icon-layers"}}<span>Context: {{.Name}}</span></div>
 		<div class="detail-card">
 			<table class="kv">
 				{{range .Fields}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
@@ -152,7 +152,7 @@
 
 	{{if .Extra}}
 	<div class="field">
-		<div class="section-title">Extra</div>
+		<div class="section-title">{{template "icon-more"}}<span>Extra</span></div>
 		<div class="detail-card">
 			<table class="kv">
 				{{range .Extra}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
@@ -165,7 +165,7 @@
 	{{if .Modules}}
 	<div class="field">
 		<details>
-			<summary class="section-title modules-summary">Modules ({{len .Modules}})</summary>
+			<summary class="section-title modules-summary"><span class="summary-content">{{template "icon-chevron-right"}}{{template "icon-package"}}<span>Modules ({{len .Modules}})</span></span></summary>
 			<div class="detail-card">
 				<table class="kv">
 					{{range .Modules}}<tr><td class="k">{{.Key}}</td><td class="v">{{.Value}}</td></tr>
@@ -177,15 +177,15 @@
 	{{end}}
 
 	<div class="field">
-		<details>
-			<summary class="section-title">Raw Event JSON</summary>
+		<details open>
+			<summary class="section-title json-summary"><span class="summary-content">{{template "icon-chevron-right"}}{{template "icon-file-json"}}<span>Raw Event JSON</span></span></summary>
 			<div class="code-block">
 				<div class="code-toolbar">
 					<button type="button" class="btn-icon copy-btn" data-copy-target="raw-json" title="Copy JSON" aria-label="Copy JSON">
 						{{template "icon-copy"}}{{template "icon-check"}}
 					</button>
 				</div>
-				<pre class="raw" id="raw-json">{{.RawJSON}}</pre>
+				<pre class="raw json-view" id="raw-json" data-highlight-json>{{.RawJSON}}</pre>
 			</div>
 		</details>
 	</div>
