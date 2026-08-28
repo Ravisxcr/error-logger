@@ -27,7 +27,7 @@
 			<td class="text-muted nowrap"><span class="meta-time">{{template "icon-clock"}}<span>{{.Time}}</span></span></td>
 			<td><span class="badge level-{{.Level}}">{{template "icon-alert"}}{{.Level}}</span></td>
 			<td class="text-muted"><span class="kind-pill">{{template "icon-tag"}}<span>{{.Kind}}</span></span></td>
-			<td><a class="row-link issue-link" href="/events/{{.ID}}">{{template "icon-bug"}}<span>{{.Summary}}</span></a></td>
+			<td><a class="row-link issue-link" href="/events/{{.ID}}" data-brand-icon="{{.Platform}}">{{template "icon-bug"}}<span>{{.Summary}}</span></a></td>
 			<td>{{if gt .Count 1}}<span class="badge count">{{template "icon-activity"}}&times;{{.Count}}</span>{{else}}<span class="text-muted">1</span>{{end}}</td>
 			{{if not $.DisableDelete}}
 			<td class="col-actions">

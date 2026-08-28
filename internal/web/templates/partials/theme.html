@@ -36,212 +36,60 @@
 })();
 {{end}}
 
-{{define "highlight-json-script"}}
+{{define "highlight-script"}}
 (function () {
-	function highlightJSON(jsonStr) {
-		if (!jsonStr) return "";
-		var html = jsonStr
-			.replace(/&/g, "&amp;")
-			.replace(/</g, "&lt;")
-			.replace(/>/g, "&gt;");
+	if (typeof Prism === "undefined") return;
 
-		return html.replace(
-			/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b|[{}\[\],])/g,
-			function (match) {
-				if (match === "{" || match === "}" || match === "[" || match === "]" || match === ",") {
-					return '<span class="json-punct">' + match + '</span>';
-				}
-				if (/^"/.test(match)) {
-					if (/:$/.test(match.trim())) {
-						var keyPart = match.slice(0, match.lastIndexOf('"') + 1);
-						var rest = match.slice(match.lastIndexOf('"') + 1);
-						return '<span class="json-key">' + keyPart + '</span><span class="json-punct">' + rest + '</span>';
-					}
-					return '<span class="json-string">' + match + '</span>';
-				}
-				if (match === "true" || match === "false") {
-					return '<span class="json-boolean">' + match + '</span>';
-				}
-				if (match === "null") {
-					return '<span class="json-null">' + match + '</span>';
-				}
-				return '<span class="json-number">' + match + '</span>';
-			}
-		);
-	}
-
-	document.querySelectorAll("[data-highlight-json]").forEach(function (el) {
-		el.innerHTML = highlightJSON(el.textContent);
-	});
-})();
-{{end}}
-
-{{define "highlight-code-script"}}
-(function () {
-	var LANG_CONFIGS = {
-		python: {
-			comments: [/(?:#.*$)/],
-			strings: [/("""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/],
-			keywords: /\b(def|class|return|import|from|as|try|except|finally|raise|if|elif|else|for|while|in|is|not|and|or|with|yield|async|await|lambda|pass|break|continue|global|nonlocal|assert|del)\b/,
-			builtins: /\b(True|False|None|self|cls|super|print|len|range|enumerate|zip|map|filter|list|dict|set|tuple|int|str|float|bool|type|isinstance|issubclass|hasattr|getattr|setattr|open|any|all|sum|min|max|sorted|reversed)\b/,
-			decorators: /(@[a-zA-Z_][a-zA-Z0-9_.]*)/,
-			types: /\b(int|str|float|bool|bytes|list|dict|set|tuple|Any|Optional|Union|List|Dict|Set|Tuple|Callable)\b/
-		},
-		javascript: {
-			comments: [/(?:\/\/[^\n]*$)/, /(?:\/\*[\s\S]*?\*\/)/],
-			strings: [/(`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/],
-			keywords: /\b(const|let|var|function|return|if|else|for|while|do|switch|case|default|break|continue|try|catch|finally|throw|new|class|extends|import|export|from|as|default|yield|async|await|typeof|instanceof|void|delete|in|of|debugger)\b/,
-			builtins: /\b(true|false|null|undefined|NaN|Infinity|this|super|window|document|console|Promise|Array|Object|String|Number|Boolean|Map|Set|Symbol|JSON|Math|Date|RegExp|Error)\b/,
-			types: /\b(string|number|boolean|any|unknown|never|void|object|bigint|symbol|T|K|V)\b/
-		},
-		typescript: {
-			comments: [/(?:\/\/[^\n]*$)/, /(?:\/\*[\s\S]*?\*\/)/],
-			strings: [/(`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/],
-			keywords: /\b(const|let|var|function|return|if|else|for|while|do|switch|case|default|break|continue|try|catch|finally|throw|new|class|extends|implements|interface|type|enum|namespace|module|import|export|from|as|default|yield|async|await|typeof|instanceof|void|delete|in|of|keyof|readonly|declare|abstract|public|private|protected|override|as)\b/,
-			builtins: /\b(true|false|null|undefined|NaN|Infinity|this|super|console|Promise|Array|Object|String|Number|Boolean|Map|Set|Record|Partial|Pick|Omit)\b/,
-			decorators: /(@[a-zA-Z_][a-zA-Z0-9_.]*)/,
-			types: /\b(string|number|boolean|any|unknown|never|void|object|bigint|symbol|Record|Partial|Required|Readonly|Pick|Omit|Exclude|Extract|NonNullable|Parameters|ReturnType)\b/
-		},
-		go: {
-			comments: [/(?:\/\/[^\n]*$)/, /(?:\/\*[\s\S]*?\*\/)/],
-			strings: [/(`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/],
-			keywords: /\b(package|import|func|return|if|else|for|range|switch|case|default|select|go|defer|chan|map|struct|interface|type|var|const|fallthrough|break|continue|goto)\b/,
-			builtins: /\b(true|false|nil|iota|append|cap|close|complex|copy|delete|imag|len|make|new|panic|print|println|real|recover)\b/,
-			types: /\b(bool|byte|complex64|complex128|error|float32|float64|int|int8|int16|int32|int64|rune|string|uint|uint8|uint16|uint32|uint64|uintptr|any)\b/
-		},
-		rust: {
-			comments: [/(?:\/\/[^\n]*$)/, /(?:\/\*[\s\S]*?\*\/)/],
-			strings: [/(r#"(?:[\s\S]*?)"#|"(?:\\.|[^"\\])*"|'\\?.'|b"(?:\\.|[^"\\])*"|b'\\?.')/],
-			keywords: /\b(fn|let|mut|pub|struct|enum|trait|impl|use|mod|match|if|else|loop|while|for|in|return|async|await|move|unsafe|type|const|static|where|as|ref|dyn|extern|crate)\b/,
-			builtins: /\b(self|Self|true|false|Some|None|Ok|Err|println|format|vec|panic|assert|assert_eq)\b/,
-			decorators: /(#!?\[[a-zA-Z0-9_(),\s=]*\])/,
-			types: /\b(i8|i16|i32|i64|i128|isize|u8|u16|u32|u64|u128|usize|f32|f64|bool|char|str|String|Vec|Option|Result|Box|Rc|Arc)\b/
-		},
-		php: {
-			comments: [/(?:\/\/[^\n]*$)/, /(?:#.*$)/, /(?:\/\*[\s\S]*?\*\/)/],
-			strings: [/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/],
-			keywords: /\b(function|class|interface|trait|namespace|use|public|private|protected|static|abstract|final|return|if|else|elseif|for|foreach|while|do|switch|case|default|break|continue|try|catch|finally|throw|new|extends|implements|as|echo|print|include|require|include_once|require_once|global|match)\b/,
-			builtins: /\b(true|false|null|this|self|parent|array|die|exit|isset|empty|unset|var_dump)\b/,
-			variables: /(\$[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/,
-			types: /\b(string|int|float|bool|array|object|callable|iterable|void|never|mixed)\b/
-		},
-		ruby: {
-			comments: [/(?:#.*$)/],
-			strings: [/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|%[qQ]?\{[^{}]*\}|%[qQ]?\[[^\[\]]*\])/],
-			keywords: /\b(def|end|class|module|require|include|extend|return|yield|if|elsif|else|unless|while|until|for|in|do|begin|rescue|ensure|raise|then|case|when|break|next|redo|retry|alias|defined\?)\b/,
-			builtins: /\b(self|nil|true|false|puts|p|print|attr_reader|attr_writer|attr_accessor|private|protected|public)\b/,
-			variables: /(@[a-zA-Z_0-9]+|@@[a-zA-Z_0-9]+|\$[a-zA-Z_0-9]+|:[a-zA-Z_0-9]+)/,
-			types: /\b(String|Integer|Float|Array|Hash|Symbol|Boolean|NilClass|Object)\b/
-		},
-		java: {
-			comments: [/(?:\/\/[^\n]*$)/, /(?:\/\*[\s\S]*?\*\/)/],
-			strings: [/("(?:\\.|[^"\\])*"|'\\?.')/],
-			keywords: /\b(public|private|protected|static|final|abstract|synchronized|volatile|transient|native|strictfp|class|interface|enum|record|extends|implements|package|import|return|if|else|for|while|do|switch|case|default|break|continue|try|catch|finally|throw|throws|new|instanceof|void|var)\b/,
-			builtins: /\b(true|false|null|this|super|System|out|println)\b/,
-			decorators: /(@[a-zA-Z_][a-zA-Z0-9_.]*)/,
-			types: /\b(byte|short|int|long|float|double|boolean|char|void|String|Object|Integer|Long|Double|Boolean|List|Map|Set|Optional)\b/
-		},
-		csharp: {
-			comments: [/(?:\/\/[^\n]*$)/, /(?:\/\*[\s\S]*?\*\/)/],
-			strings: [/(?:@"(?:""|[^"])*"|\$"(?:\\.|[^"\\])*"|"(?:\\.|[^"\\])*"|'\\?.')/],
-			keywords: /\b(public|private|protected|internal|static|readonly|volatile|virtual|override|abstract|sealed|class|struct|record|interface|enum|namespace|using|return|if|else|for|foreach|while|do|switch|case|default|break|continue|try|catch|finally|throw|new|is|as|typeof|sizeof|stackalloc|unsafe|fixed|checked|unchecked|async|await|yield|var|get|set|init|value)\b/,
-			builtins: /\b(true|false|null|this|base|Console|WriteLine)\b/,
-			types: /\b(bool|byte|sbyte|char|decimal|double|float|int|uint|nint|nuint|long|ulong|short|ushort|object|string|dynamic|void|Task|List|Dictionary|IEnumerable)\b/
-		}
+	var ALIASES = {
+		py: "python",
+		golang: "go",
+		node: "javascript",
+		cjs: "javascript",
+		mjs: "javascript",
+		js: "javascript",
+		ts: "typescript",
+		cs: "csharp",
+		dotnet: "csharp",
+		rb: "ruby",
+		kt: "kotlin",
+		kts: "kotlin",
+		rs: "rust",
+		sh: "bash",
+		shell: "bash",
+		zsh: "bash",
+		yml: "yaml",
+		htm: "html",
+		cxx: "cpp",
+		cc: "cpp",
+		hpp: "cpp",
+		h: "c",
+		cocoa: "swift",
+		apple: "swift"
 	};
 
-	function highlightCode(srcText, lang) {
-		if (!srcText) return "";
-		var escaped = srcText
-			.replace(/&/g, "&amp;")
-			.replace(/</g, "&lt;")
-			.replace(/>/g, "&gt;");
-
-		var normLang = (lang || "").toLowerCase();
-		if (normLang === "node" || normLang === "cjs" || normLang === "mjs") normLang = "javascript";
-		if (normLang === "golang") normLang = "go";
-		if (normLang === "py") normLang = "python";
-		if (normLang === "rb") normLang = "ruby";
-		if (normLang === "cs" || normLang === "dotnet") normLang = "csharp";
-		if (normLang === "kt") normLang = "kotlin";
-
-		var config = LANG_CONFIGS[normLang];
-		if (!config) {
-			config = {
-				comments: [/(?:\/\/[^\n]*$)/, /(?:#.*$)/, /(?:\/\*[\s\S]*?\*\/)/],
-				strings: [/(`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/],
-				keywords: /\b(func|function|def|fn|pub|sub|class|struct|interface|type|enum|package|import|export|use|module|return|yield|if|elif|elsif|else|for|while|do|loop|switch|case|default|match|break|continue|try|catch|except|rescue|finally|ensure|throw|raise|new|var|val|let|const|static|final|async|await)\b/,
-				builtins: /\b(true|false|True|False|null|nil|None|this|self|Self|super)\b/,
-				types: /\b(string|str|int|int64|float|float64|bool|boolean|void|any|error)\b/
-			};
-		}
-
-		var parts = [];
-		if (config.comments && config.comments.length) {
-			parts.push("(?:" + config.comments.map(function(r){ return r.source; }).join("|") + ")");
-		}
-		if (config.strings && config.strings.length) {
-			parts.push("(?:" + config.strings.map(function(r){ return r.source; }).join("|") + ")");
-		}
-		if (config.decorators) {
-			parts.push(config.decorators.source);
-		}
-		if (config.variables) {
-			parts.push(config.variables.source);
-		}
-		parts.push("(?:-?\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b)");
-		if (config.keywords) {
-			parts.push("(?:" + config.keywords.source + ")");
-		}
-		if (config.builtins) {
-			parts.push("(?:" + config.builtins.source + ")");
-		}
-		if (config.types) {
-			parts.push("(?:" + config.types.source + ")");
-		}
-		parts.push("(?:\\b[a-zA-Z_][a-zA-Z0-9_]*(?=\\s*\\())");
-		parts.push("(?:&amp;&amp;|\\|\\||==|!=|&lt;=|&gt;=|=&gt;|-&gt;|::|[-+*/%=&lt;&gt;!&amp;|^~]=?)");
-
-		var masterRegex = new RegExp(parts.map(function(p){ return "(" + p + ")"; }).join("|"), "g");
-
-		return escaped.replace(masterRegex, function () {
-			var match = arguments[0];
-			if (!match) return "";
-
-			if (/^(?:#|\/\/|\/\*|--)/.test(match)) {
-				return '<span class="tok-comment">' + match + '</span>';
-			}
-			if (/^["'`]|r#|%[qQ]|\$"|@"/.test(match)) {
-				return '<span class="tok-string">' + match + '</span>';
-			}
-			if (/^@|#!?\[/.test(match)) {
-				return '<span class="tok-annotation">' + match + '</span>';
-			}
-			if (/^\$|@|:/.test(match) && config.variables && config.variables.test(match)) {
-				return '<span class="tok-var">' + match + '</span>';
-			}
-			if (/^-?\d/.test(match)) {
-				return '<span class="tok-number">' + match + '</span>';
-			}
-			if (config.keywords && config.keywords.test(match)) {
-				return '<span class="tok-keyword">' + match + '</span>';
-			}
-			if (config.builtins && config.builtins.test(match)) {
-				return '<span class="tok-builtin">' + match + '</span>';
-			}
-			if (config.types && config.types.test(match)) {
-				return '<span class="tok-type">' + match + '</span>';
-			}
-			if (/^[a-zA-Z_]/.test(match)) {
-				return '<span class="tok-fn">' + match + '</span>';
-			}
-			return '<span class="tok-op">' + match + '</span>';
-		});
+	function resolveGrammar(lang) {
+		var norm = (lang || "").toLowerCase().trim();
+		if (ALIASES[norm]) norm = ALIASES[norm];
+		if (norm && Prism.languages[norm]) return { grammar: Prism.languages[norm], lang: norm };
+		return { grammar: Prism.languages.clike || Prism.languages.javascript || Prism.languages.plain, lang: norm || "plain" };
 	}
 
+	// Highlight stacktrace code lines
 	document.querySelectorAll("[data-code-line]").forEach(function (el) {
 		var lang = el.getAttribute("data-lang") || (el.closest("[data-lang]") && el.closest("[data-lang]").getAttribute("data-lang")) || "";
-		el.innerHTML = highlightCode(el.textContent, lang);
+		var resolved = resolveGrammar(lang);
+		if (resolved.grammar) {
+			el.innerHTML = Prism.highlight(el.textContent, resolved.grammar, resolved.lang);
+		}
 	});
+
+	// Highlight raw JSON blocks
+	if (Prism.languages.json) {
+		document.querySelectorAll("[data-highlight-json]").forEach(function (el) {
+			el.innerHTML = Prism.highlight(el.textContent, Prism.languages.json, "json");
+		});
+	}
 })();
 {{end}}
+
+

@@ -100,6 +100,39 @@ func TestWebRendering(t *testing.T) {
 	if len(body) == 0 {
 		t.Fatalf("GET /events/%s returned empty body", eventID)
 	}
+
+	// Test GET /static/prism.min.js
+	req = httptest.NewRequest("GET", "/static/prism.min.js", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /static/prism.min.js returned status %d: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Body.Len() == 0 {
+		t.Fatalf("GET /static/prism.min.js returned empty body")
+	}
+
+	// Test GET /static/icons.min.js
+	req = httptest.NewRequest("GET", "/static/icons.min.js", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /static/icons.min.js returned status %d: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Body.Len() == 0 {
+		t.Fatalf("GET /static/icons.min.js returned empty body")
+	}
+
+	// Test GET /static/style.css
+	req = httptest.NewRequest("GET", "/static/style.css", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /static/style.css returned status %d: %s", rec.Code, rec.Body.String())
+	}
+	if rec.Body.Len() == 0 {
+		t.Fatalf("GET /static/style.css returned empty body")
+	}
 }
 
 func TestDetectLanguage(t *testing.T) {
@@ -133,4 +166,38 @@ func TestDetectLanguage(t *testing.T) {
 		}
 	}
 }
+
+func TestExtractContextSummary(t *testing.T) {
+	contexts := map[string]any{
+		"os": map[string]any{
+			"name":    "Linux",
+			"version": "6.6.0-generic",
+		},
+		"runtime": map[string]any{
+			"name":    "CPython",
+			"version": "3.12.0",
+		},
+		"browser": map[string]any{
+			"name": "Chrome",
+		},
+	}
+
+	if res := extractContextSummary(contexts, "os"); res != "Linux 6.6.0-generic" {
+		t.Errorf("expected 'Linux 6.6.0-generic', got %q", res)
+	}
+	if res := extractContextSummary(contexts, "runtime"); res != "CPython 3.12.0" {
+		t.Errorf("expected 'CPython 3.12.0', got %q", res)
+	}
+	if res := extractContextSummary(contexts, "browser"); res != "Chrome" {
+		t.Errorf("expected 'Chrome', got %q", res)
+	}
+	if res := extractContextSummary(map[string]any{"runtime": map[string]any{"name": "go", "version": "go1.22.2"}}, "runtime"); res != "go1.22.2" {
+		t.Errorf("expected 'go1.22.2', got %q", res)
+	}
+	if res := extractContextSummary(contexts, "device"); res != "" {
+		t.Errorf("expected empty string for missing device, got %q", res)
+	}
+}
+
+
 

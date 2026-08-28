@@ -435,20 +435,29 @@ tbody tr:hover td {
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 3px 10px;
+  padding: 3px 9px;
   margin: 0 6px 6px 0;
-  font-size: 11px;
+  font-size: 11.5px;
+  line-height: 1.2;
   color: var(--muted);
+  vertical-align: middle;
 }
 
 .pill .icon {
-  width: 12px;
-  height: 12px;
-  opacity: 0.75;
+  width: 13px;
+  height: 13px;
+  opacity: 0.85;
+  display: block;
+}
+
+.pill span {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
 }
 
 .pill-bad {
@@ -516,9 +525,30 @@ tbody tr:hover td {
 /* ---------- Buttons ---------- */
 
 .icon {
-  display: inline-block;
+  display: block;
   vertical-align: middle;
   flex: 0 0 auto;
+}
+
+.icon-brand {
+  display: block;
+  vertical-align: middle;
+  flex: 0 0 auto;
+  opacity: 1 !important;
+}
+
+.pill .icon,
+.pill .icon-brand {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+
+.issue-link .icon,
+.issue-link .icon-brand {
+  width: 15px;
+  height: 15px;
+  display: block;
 }
 
 .theme-toggle,
@@ -823,49 +853,84 @@ tbody tr:hover td {
   font-weight: 700;
 }
 
-/* Code Syntax Tokens */
-.tok-keyword {
+/* Code Syntax Tokens (Prism.js) */
+.token.keyword,
+.token.atrule {
   color: var(--tok-keyword);
   font-weight: 600;
 }
 
-.tok-string {
+.token.string,
+.token.char,
+.token.string-interpolation,
+.token.attr-value {
   color: var(--tok-string);
 }
 
-.tok-number {
+.token.number {
   color: var(--tok-number);
 }
 
-.tok-comment {
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
   color: var(--tok-comment);
   font-style: italic;
 }
 
-.tok-fn {
+.token.function,
+.token.class-name {
   color: var(--tok-fn);
 }
 
-.tok-builtin {
+.token.builtin,
+.token.constant {
   color: var(--tok-builtin);
   font-weight: 600;
 }
 
-.tok-type {
+.token.type,
+.token.namespace {
   color: var(--tok-type);
 }
 
-.tok-annotation {
+.token.annotation,
+.token.decorator {
   color: var(--tok-annotation);
   font-style: italic;
 }
 
-.tok-var {
+.token.variable,
+.token.parameter,
+.token.regex,
+.token.important,
+.token.attr-name {
   color: var(--tok-var);
 }
 
-.tok-op {
+.token.operator,
+.token.punctuation,
+.token.entity,
+.token.url {
   color: var(--tok-op);
+}
+
+.token.boolean {
+  color: var(--tok-builtin);
+  font-weight: 600;
+}
+
+.token.tag {
+  color: var(--tok-keyword);
+}
+
+.token.inserted {
+  color: var(--tok-string);
+}
+
+.token.deleted {
+  color: var(--error);
 }
 
 /* ---------- Tags ---------- */
@@ -1047,30 +1112,33 @@ pre.json-view {
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-.json-key {
+/* ---------- Raw JSON & Syntax Highlighting (Prism.js) ---------- */
+.json-view .token.property {
   color: var(--json-key);
   font-weight: 600;
 }
 
-.json-string {
+.json-view .token.string {
   color: var(--json-string);
 }
 
-.json-number {
+.json-view .token.number {
   color: var(--json-number);
 }
 
-.json-boolean {
+.json-view .token.boolean {
   color: var(--json-boolean);
   font-weight: 600;
 }
 
-.json-null {
+.json-view .token.null,
+.json-view .token.null.keyword {
   color: var(--json-null);
   font-weight: 600;
   font-style: italic;
 }
 
-.json-punct {
+.json-view .token.punctuation,
+.json-view .token.operator {
   color: var(--json-punct);
 }

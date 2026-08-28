@@ -15,12 +15,15 @@
 			<span class="meta-item">{{template "icon-clock"}}<span>{{.Time}}</span></span> &middot; <span class="meta-item">{{template "icon-folder"}}<span>project {{.ProjectID}}</span></span> &middot; <span class="meta-item">{{template "icon-tag"}}<span>kind {{.Kind}}</span></span> &middot; <span class="meta-item">{{template "icon-hash"}}<span>id {{.ID}}</span></span>
 			{{if gt .Count 1}}&middot; <span class="badge count">{{template "icon-activity"}}&times;{{.Count}}</span> seen, first at {{.FirstSeen}}{{end}}
 		</div>
-		{{if or .Environment .Release .ServerName .Platform .SDK}}
+		{{if or .Environment .Release .ServerName .Platform .SDK .OS .Runtime .Browser}}
 		<div class="meta-line pill-row">
+			{{if .Platform}}<span class="pill" data-brand-icon="{{.Platform}}">{{template "icon-cpu"}}<span>{{.Platform}}</span></span>{{end}}
+			{{if .OS}}<span class="pill" data-brand-icon="{{.OS}}">{{template "icon-server"}}<span>{{.OS}}</span></span>{{end}}
+			{{if .Runtime}}<span class="pill" data-brand-icon="{{.Runtime}}">{{template "icon-cpu"}}<span>{{.Runtime}}</span></span>{{end}}
+			{{if .Browser}}<span class="pill" data-brand-icon="{{.Browser}}">{{template "icon-globe"}}<span>{{.Browser}}</span></span>{{end}}
 			{{if .Environment}}<span class="pill">{{template "icon-terminal"}}<span>env: {{.Environment}}</span></span>{{end}}
 			{{if .Release}}<span class="pill">{{template "icon-git-branch"}}<span>release: {{.Release}}</span></span>{{end}}
 			{{if .ServerName}}<span class="pill">{{template "icon-server"}}<span>server: {{.ServerName}}</span></span>{{end}}
-			{{if .Platform}}<span class="pill">{{template "icon-cpu"}}<span>platform: {{.Platform}}</span></span>{{end}}
 			{{if .SDK}}<span class="pill">{{template "icon-package"}}<span>sdk: {{.SDK}}</span></span>{{end}}
 		</div>
 		{{end}}

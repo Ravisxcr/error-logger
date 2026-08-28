@@ -75,6 +75,7 @@ type eventRow struct {
 	Level     string
 	ProjectID string
 	Kind      string
+	Platform  string
 	Summary   string
 	Count     int
 }
@@ -132,6 +133,9 @@ type detailView struct {
 	ServerName  string
 	Platform    string
 	SDK         string
+	OS          string
+	Runtime     string
+	Browser     string
 
 	Exceptions  []exceptionView
 	Message     string
@@ -328,6 +332,9 @@ func buildDetailView(capturedEvent store.Captured) detailView {
 	if eventData.SDK != nil {
 		detailViewData.SDK = strings.TrimSpace(eventData.SDK.Name + " " + eventData.SDK.Version)
 	}
+	detailViewData.OS = extractContextSummary(eventData.Contexts, "os")
+	detailViewData.Runtime = extractContextSummary(eventData.Contexts, "runtime")
+	detailViewData.Browser = extractContextSummary(eventData.Contexts, "browser")
 	detailViewData.Tags = eventData.Tags
 
 	detailViewData.Exceptions = buildExceptions(eventData)
@@ -626,6 +633,11 @@ func summarize(capturedEvent store.Captured) eventRow {
 		return row
 	}
 
+	row.Platform = capturedEvent.Event.Platform
+	if row.Platform == "" {
+		row.Platform = extractContextSummary(capturedEvent.Event.Contexts, "runtime")
+	}
+
 	if capturedEvent.Event.Level != "" {
 		row.Level = strings.ToLower(capturedEvent.Event.Level)
 	} else if capturedEvent.Kind == "event" {
@@ -666,3 +678,41 @@ func orUnknown(inputStr string) string {
 	}
 	return inputStr
 }
+
+func extractContextSummary(contexts map[string]any, group string) string {
+	if len(contexts) == 0 {
+		return ""
+	}
+	val, ok := contexts[group]
+	if !ok || val == nil {
+		return ""
+	}
+
+	var m map[string]any
+	if directMap, ok := val.(map[string]any); ok {
+		m = directMap
+	} else if b, err := json.Marshal(val); err == nil {
+		_ = json.Unmarshal(b, &m)
+	}
+	if len(m) == 0 {
+		return ""
+	}
+
+	name := stringify(m["name"])
+	if name == "" || name == "null" {
+		name = stringify(m["family"])
+	}
+	if name == "" || name == "null" {
+		return ""
+	}
+
+	version := stringify(m["version"])
+	if version != "" && version != "null" {
+		if strings.HasPrefix(strings.ToLower(version), strings.ToLower(name)) {
+			return version
+		}
+		return name + " " + version
+	}
+	return name
+}
+
