@@ -1,9 +1,12 @@
 import logging
+import os
 
 import sentry_sdk
 from sentry_sdk.integrations.logging import LoggingIntegration
 
 from abcd.div import divide
+
+dsn = os.getenv("SENTRY_DSN", "http://public@127.0.0.1:9000/1")
 
 # Grabbing the integration instance lets us filter its event handler below,
 # so specific log calls can be excluded from becoming their own Sentry event
@@ -12,12 +15,14 @@ logging_integration = LoggingIntegration()
 
 sentry_sdk.init(
     # Points at the local error-logger server instead of sentry.io.
-    dsn="http://public@127.0.0.1:9000/6",
+    dsn=dsn,
     # Set to 1.0 for demo purposes so every event is sent.
     traces_sample_rate=1.0,
     # Capture 100% of profiling data (optional).
     profile_session_sample_rate=1.0,
     profile_lifecycle="trace",
+    environment="production",
+    release="python-demo@1.0.0",
     integrations=[logging_integration],
 )
 
@@ -35,28 +40,21 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    print("Hello from demo!")
-
-    # Message events at every severity level, to exercise the level-based
-    # color coding in the console output and dashboard.
-    # sentry_sdk.capture_message("Debug message from Python", level="debug")
-    # sentry_sdk.capture_message("Info message from Python", level="info")
-    # sentry_sdk.capture_message("Warning message from Python", level="warning")
-    # sentry_sdk.capture_message("Error-level message from Python", level="error")
-    # sentry_sdk.capture_message("Fatal message from Python", level="fatal")
+    print("Hello from Python Sentry demo!")
 
     # Standard-library logging is captured automatically by sentry_sdk's
-    # LoggingIntegration (enabled by default): INFO+ becomes a breadcrumb,
-    # ERROR+ is sent as its own event.
-    # logger.info("Info log from the stdlib logging module")
-    # logger.warning("Warning log from the stdlib logging module")
-    # logger.error("Error log from the stdlib logging module")
+    # LoggingIntegration: INFO+ becomes breadcrumbs, ERROR+ becomes an event.
+    logger.info("Info log from the stdlib logging module")
 
     # A handled exception, captured without crashing the process.
-    divide()
+    try:
+        divide()
+    except Exception as exc:
+        print(f"Caught exception in demo runner: {exc}")
 
-    # An unhandled exception, captured automatically as the process exits.
-    # raise FileExistsError("This is a demo exception!")
+    # Flush events before exiting
+    sentry_sdk.flush(timeout=2.0)
+    print("Python demo finished successfully.")
 
 
 if __name__ == "__main__":
