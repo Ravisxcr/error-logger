@@ -49,7 +49,11 @@ async function main() {
   Sentry.captureMessage("Node worker completed queue processing successfully", "info");
 
   // 3. Flush events before exiting
-  await Sentry.flush(2000);
+  try {
+    await Sentry.flush(2000);
+  } catch (err) {
+    console.warn("Warning: Sentry flush failed (is server running?):", err.message);
+  }
   console.log("Node.js demo finished successfully.");
 }
 

@@ -1,15 +1,23 @@
 # Build stage
-FROM golang:alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:alpine AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /app
 COPY go.mod ./
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o error-logger ./cmd/server
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o error-logger ./cmd/server
 
 # Run stage
 FROM alpine:latest
+WORKDIR /app/data
 WORKDIR /app
 COPY --from=builder /app/error-logger .
-RUN mkdir -p /app/data
+ENV PORT=9000 \
+    DATA_DIR=/app/data
+
 EXPOSE 9000
-CMD ["./error-logger", "-addr", ":9000", "-data-dir", "/app/data"]
+ENTRYPOINT ["./error-logger"]
+
+

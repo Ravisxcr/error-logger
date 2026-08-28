@@ -181,8 +181,8 @@ func (h *Handler) handleProjects(writer http.ResponseWriter, request *http.Reque
 	}
 
 	page := Page{
-		Title:         "error-logger",
-		Subtitle:      pluralize(len(rows), "project"),
+		Title:         "Error Logger",
+		Subtitle:      pluralize(len(rows), "Project"),
 		AutoRefresh:   true,
 		DisableDelete: h.DisableDelete,
 		Data:          struct{ Projects []projectRow }{Projects: rows},
@@ -203,10 +203,10 @@ func (h *Handler) handleProjectIssues(writer http.ResponseWriter, request *http.
 	}
 
 	page := Page{
-		Title:         fmt.Sprintf("%s — error-logger", projectID),
+		Title:         fmt.Sprintf("%s - Error Logger", projectID),
 		Subtitle:      fmt.Sprintf("%s in %s", pluralize(len(rows), "issue"), projectID),
 		BackHref:      "/",
-		BackLabel:     "error-logger",
+		BackLabel:     "Error Logger",
 		AutoRefresh:   true,
 		DisableDelete: h.DisableDelete,
 		Data: struct {
@@ -232,7 +232,7 @@ func (h *Handler) handleDetail(writer http.ResponseWriter, request *http.Request
 	detailViewData := buildDetailView(capturedEvent)
 
 	page := Page{
-		Title:         fmt.Sprintf("%s — error-logger", detailViewData.Summary),
+		Title:         fmt.Sprintf("%s - Error Logger", detailViewData.Summary),
 		BackHref:      "/projects/" + detailViewData.ProjectID,
 		BackLabel:     detailViewData.ProjectID,
 		DisableDelete: h.DisableDelete,

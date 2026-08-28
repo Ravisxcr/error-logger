@@ -1,9 +1,15 @@
-.PHONY: all build run test vet fmt docker-build docker-up docker-down docker-logs test-sdks test-python test-node test-go clean help
+.PHONY: all build run test vet fmt docker-build docker-tag docker-push docker-release docker-up docker-down docker-logs test-sdks test-python test-node test-go clean help
 
 BIN_DIR := bin
 BINARY := $(BIN_DIR)/error-logger
 PORT := 9000
 DATA_DIR := data
+
+VERSION := $(shell cat VERSION)
+MAJOR := $(shell echo $(VERSION) | cut -d. -f1)
+DOCKER_USER ?= ravisxcr
+IMAGE_NAME ?= error-logger
+IMAGE := $(DOCKER_USER)/$(IMAGE_NAME)
 
 all: build
 
@@ -36,21 +42,38 @@ vet:
 fmt:
 	go fmt ./...
 
-## docker-build: Build the error-logger Docker image
+## docker-build: Build the error-logger Docker image with version tags
 docker-build:
-	docker build -t error-logger:latest .
+	docker build -t $(IMAGE):$(VERSION) -t $(IMAGE):latest -t error-logger:latest .
+
+## docker-tag: Tag image with major and latest aliases
+docker-tag:
+	docker tag $(IMAGE):$(VERSION) $(IMAGE):$(MAJOR)
+	docker tag $(IMAGE):$(VERSION) $(IMAGE):latest
+
+## docker-push: Push version, major, and latest tags to Docker Hub
+docker-push: docker-tag
+	docker push $(IMAGE):$(VERSION)
+	docker push $(IMAGE):$(MAJOR)
+	docker push $(IMAGE):latest
+
+## docker-release: Build and push multi-arch images (amd64, arm64) to Docker Hub
+docker-release:
+	docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		-t $(IMAGE):$(VERSION) \
+		-t $(IMAGE):$(MAJOR) \
+		-t $(IMAGE):latest \
+		--push .
 
 ## docker-up: Start error-logger in background with Docker Compose
 docker-up:
-	docker compose up -d --build
+	docker compose up --build
 
 ## docker-down: Stop and remove Docker Compose containers
 docker-down:
 	docker compose down
 
-## docker-logs: View live logs from Docker Compose
-docker-logs:
-	docker compose logs -f
 
 ## test-sdks: Run all SDK test clients in isolated Docker Compose environment
 test-sdks:
