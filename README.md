@@ -25,15 +25,17 @@ You can run the server directly using Go:
 go run ./cmd/server
 ```
 
-**Available Flags:**
+**Configuration Options (Flags & Environment Variables):**
 
-| Flag                   | Default | Description                                          |
-|------------------------|---------|-------------------------------------------------------|
-| `-addr`                | `:9000` | Address to listen on                                   |
-| `-data-dir`            | `data`  | Directory for the `events.jsonl` database              |
-| `-capacity`            | `1000`  | Max events kept in memory for the dashboard            |
-| `-disable-delete`      | `false` | Disable deleting events/issues/projects from the dashboard |
-| `-disable-console-log` | `false` | Disable printing captured events to the console        |
+| Flag                   | Environment Variable | Default | Description                                                |
+|------------------------|----------------------|---------|------------------------------------------------------------|
+| `-addr`                | `ADDR` or `PORT`     | `:9000` | Address to listen on (e.g. `:8080`, `8080`)                |
+| `-data-dir`            | `DATA_DIR`           | `data` (`/app/data` in Docker) | Directory for the `events.jsonl` database |
+| `-capacity`            | `CAPACITY`           | `1000`  | Max events kept in memory for the dashboard                |
+| `-disable-delete`      | `DISABLE_DELETE`     | `false` | Disable deleting events/issues/projects from the dashboard |
+| `-disable-console-log` | `DISABLE_CONSOLE_LOG`| `false` | Disable printing captured events to the console            |
+
+*Note: CLI flags take precedence over environment variables, which take precedence over default values.*
 
 Once running, you can access the dashboard at: **http://localhost:9000/**
 
