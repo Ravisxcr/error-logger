@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -93,6 +94,7 @@ type frameView struct {
 	Function string
 	Module   string
 	Location string
+	Language string
 	InApp    bool
 	Lines    []codeLine
 	Vars     []kv
@@ -365,7 +367,7 @@ func buildExceptions(eventData *sentryevent.Event) []exceptionView {
 		}
 		if exceptionVal.Stacktrace != nil {
 			for _, frameVal := range exceptionVal.Stacktrace.Frames {
-				exceptionViewData.Frames = append(exceptionViewData.Frames, buildFrame(frameVal))
+				exceptionViewData.Frames = append(exceptionViewData.Frames, buildFrame(frameVal, eventData.Platform))
 			}
 		}
 		exceptionsList = append(exceptionsList, exceptionViewData)
@@ -446,7 +448,7 @@ func buildModules(eventData *sentryevent.Event) []kv {
 	return modulesList
 }
 
-func buildFrame(frameData sentryevent.Frame) frameView {
+func buildFrame(frameData sentryevent.Frame, platform string) frameView {
 	locationPath := frameData.Filename
 	if locationPath == "" {
 		locationPath = frameData.AbsPath
@@ -460,25 +462,26 @@ func buildFrame(frameData sentryevent.Frame) frameView {
 		Function: orUnknown(frameData.Function),
 		Module:   frameData.Module,
 		Location: location,
+		Language: detectLanguage(locationPath, platform),
 		InApp:    frameData.InApp,
 	}
 
 	if frameData.ContextLine != "" || len(frameData.PreContext) > 0 || len(frameData.PostContext) > 0 {
 		if frameData.Lineno > 0 {
-	    start := frameData.Lineno - len(frameData.PreContext)
-	    if start < 1 {
-	        start = 1
-	    }
-	    for lineIndex, contextText := range frameData.PreContext {
-	        frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: start + lineIndex, Text: contextText})
-	    }
-	    frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno, Text: frameData.ContextLine, Current: true})
-	    for lineIndex, contextText := range frameData.PostContext {
-	        frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno + 1 + lineIndex, Text: contextText})
-	    }
-			} else if frameData.ContextLine != "" {
-	    frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: 0, Text: frameData.ContextLine, Current: true})
+			start := frameData.Lineno - len(frameData.PreContext)
+			if start < 1 {
+				start = 1
 			}
+			for lineIndex, contextText := range frameData.PreContext {
+				frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: start + lineIndex, Text: contextText})
+			}
+			frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno, Text: frameData.ContextLine, Current: true})
+			for lineIndex, contextText := range frameData.PostContext {
+				frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno + 1 + lineIndex, Text: contextText})
+			}
+		} else if frameData.ContextLine != "" {
+			frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: 0, Text: frameData.ContextLine, Current: true})
+		}
 	}
 
 	if len(frameData.Vars) > 0 {
@@ -489,6 +492,75 @@ func buildFrame(frameData sentryevent.Frame) frameView {
 	}
 
 	return frameViewData
+}
+
+func detectLanguage(filename string, platform string) string {
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".py", ".pyw":
+		return "python"
+	case ".js", ".mjs", ".cjs", ".jsx":
+		return "javascript"
+	case ".ts", ".tsx", ".mts", ".cts":
+		return "typescript"
+	case ".go":
+		return "go"
+	case ".rs":
+		return "rust"
+	case ".java":
+		return "java"
+	case ".kt", ".kts":
+		return "kotlin"
+	case ".cs":
+		return "csharp"
+	case ".php":
+		return "php"
+	case ".rb":
+		return "ruby"
+	case ".c", ".h", ".cpp", ".hpp", ".cc", ".cxx":
+		return "cpp"
+	case ".swift":
+		return "swift"
+	case ".sh", ".bash", ".zsh":
+		return "shell"
+	case ".sql":
+		return "sql"
+	case ".html", ".htm":
+		return "html"
+	case ".css", ".scss", ".sass", ".less":
+		return "css"
+	case ".json":
+		return "json"
+	case ".yaml", ".yml":
+		return "yaml"
+	default:
+		switch strings.ToLower(platform) {
+		case "python":
+			return "python"
+		case "node", "javascript":
+			return "javascript"
+		case "go", "golang":
+			return "go"
+		case "ruby":
+			return "ruby"
+		case "php":
+			return "php"
+		case "java":
+			return "java"
+		case "csharp", "dotnet":
+			return "csharp"
+		case "rust":
+			return "rust"
+		case "kotlin":
+			return "kotlin"
+		case "swift", "apple", "cocoa":
+			return "swift"
+		case "elixir":
+			return "elixir"
+		default:
+			return strings.ToLower(platform)
+		}
+	}
 }
 
 // -----------------------------------------------------------------------------

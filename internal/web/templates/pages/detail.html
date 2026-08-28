@@ -65,8 +65,8 @@
 						<span class="fn">{{.Function}}</span> <span class="loc">({{.Location}})</span>
 					</div>
 					{{if .Lines}}
-					<div class="code">
-						{{range .Lines}}<div class="code-line{{if .Current}} current{{end}}"><span class="ln">{{.Num}}</span><span class="src">{{.Text}}</span></div>
+					<div class="code" data-lang="{{.Language}}">
+						{{range .Lines}}<div class="code-line{{if .Current}} current{{end}}"><span class="ln">{{.Num}}</span><span class="src" data-code-line>{{.Text}}</span></div>
 						{{end}}
 					</div>
 					{{end}}

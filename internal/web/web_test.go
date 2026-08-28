@@ -102,3 +102,35 @@ func TestWebRendering(t *testing.T) {
 	}
 }
 
+func TestDetectLanguage(t *testing.T) {
+	tests := []struct {
+		filename string
+		platform string
+		expected string
+	}{
+		{"main.py", "python", "python"},
+		{"server.go", "go", "go"},
+		{"index.js", "javascript", "javascript"},
+		{"app.ts", "node", "typescript"},
+		{"component.tsx", "", "typescript"},
+		{"Main.java", "java", "java"},
+		{"App.kt", "kotlin", "kotlin"},
+		{"Program.cs", "csharp", "csharp"},
+		{"index.php", "php", "php"},
+		{"script.rb", "ruby", "ruby"},
+		{"lib.rs", "rust", "rust"},
+		{"run.sh", "", "shell"},
+		{"schema.sql", "", "sql"},
+		{"unknown.xyz", "python", "python"},
+		{"no_ext", "go", "go"},
+		{"no_ext", "", ""},
+	}
+
+	for _, tc := range tests {
+		result := detectLanguage(tc.filename, tc.platform)
+		if result != tc.expected {
+			t.Errorf("detectLanguage(%q, %q) = %q, expected %q", tc.filename, tc.platform, result, tc.expected)
+		}
+	}
+}
+
