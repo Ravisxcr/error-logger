@@ -1,0 +1,56 @@
+services:
+  error-logger:
+    build: .
+    container_name: error-logger-test-server
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9000/ || exit 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 5
+
+  test-python:
+    image: python:3.12-slim
+    container_name: error-logger-test-python
+    depends_on:
+      error-logger:
+        condition: service_healthy
+    working_dir: /app
+    volumes:
+      - ./demo:/app
+    environment:
+      - SENTRY_DSN=http://public@error-logger:9000/1
+    command: >
+      sh -c "pip install --no-cache-dir sentry-sdk && python main.py"
+
+  test-node:
+    image: node:20-alpine
+    container_name: error-logger-test-node
+    depends_on:
+      error-logger:
+        condition: service_healthy
+    working_dir: /app
+    volumes:
+      - ./demo/node:/app
+    environment:
+      - SENTRY_DSN=http://public@error-logger:9000/2
+    command: >
+      sh -c "npm install --no-audit --no-fund && node index.js"
+
+  test-go:
+    image: golang:alpine
+    container_name: error-logger-test-go
+    depends_on:
+      error-logger:
+        condition: service_healthy
+    working_dir: /app
+    volumes:
+      - ./demo/go:/app
+    environment:
+      - SENTRY_DSN=http://public@error-logger:9000/3
+    command: >
+      sh -c "go run main.go"
+

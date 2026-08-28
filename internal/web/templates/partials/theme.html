@@ -35,3 +35,61 @@
 	});
 })();
 {{end}}
+
+{{define "highlight-script"}}
+(function () {
+	if (typeof Prism === "undefined") return;
+
+	var ALIASES = {
+		py: "python",
+		golang: "go",
+		node: "javascript",
+		cjs: "javascript",
+		mjs: "javascript",
+		js: "javascript",
+		ts: "typescript",
+		cs: "csharp",
+		dotnet: "csharp",
+		rb: "ruby",
+		kt: "kotlin",
+		kts: "kotlin",
+		rs: "rust",
+		sh: "bash",
+		shell: "bash",
+		zsh: "bash",
+		yml: "yaml",
+		htm: "html",
+		cxx: "cpp",
+		cc: "cpp",
+		hpp: "cpp",
+		h: "c",
+		cocoa: "swift",
+		apple: "swift"
+	};
+
+	function resolveGrammar(lang) {
+		var norm = (lang || "").toLowerCase().trim();
+		if (ALIASES[norm]) norm = ALIASES[norm];
+		if (norm && Prism.languages[norm]) return { grammar: Prism.languages[norm], lang: norm };
+		return { grammar: Prism.languages.clike || Prism.languages.javascript || Prism.languages.plain, lang: norm || "plain" };
+	}
+
+	// Highlight stacktrace code lines
+	document.querySelectorAll("[data-code-line]").forEach(function (el) {
+		var lang = el.getAttribute("data-lang") || (el.closest("[data-lang]") && el.closest("[data-lang]").getAttribute("data-lang")) || "";
+		var resolved = resolveGrammar(lang);
+		if (resolved.grammar) {
+			el.innerHTML = Prism.highlight(el.textContent, resolved.grammar, resolved.lang);
+		}
+	});
+
+	// Highlight raw JSON blocks
+	if (Prism.languages.json) {
+		document.querySelectorAll("[data-highlight-json]").forEach(function (el) {
+			el.innerHTML = Prism.highlight(el.textContent, Prism.languages.json, "json");
+		});
+	}
+})();
+{{end}}
+
+

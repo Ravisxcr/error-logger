@@ -12,40 +12,42 @@ import (
 )
 
 // Event is a single Sentry "error" or "message" event, as sent inside an
-// envelope item of type "event".
 type Event struct {
 	EventID     string          `json:"event_id"`
+	Type        string          `json:"type,omitempty"`      // "default" (error), "transaction", or "session"
 	Timestamp   json.RawMessage `json:"timestamp,omitempty"` // float seconds or RFC3339 string
+	Received    json.RawMessage `json:"received,omitempty"`  // ingest time recorded by server/relay
 	Platform    string          `json:"platform,omitempty"`
 	Level       string          `json:"level,omitempty"`
 	Logger      string          `json:"logger,omitempty"`
 	Transaction string          `json:"transaction,omitempty"`
+	Culprit     string          `json:"culprit,omitempty"` // legacy/fallback function name
 	ServerName  string          `json:"server_name,omitempty"`
 	Release     string          `json:"release,omitempty"`
 	Dist        string          `json:"dist,omitempty"`
 	Environment string          `json:"environment,omitempty"`
 
-	Message     *Message               `json:"message,omitempty"`
-	LogEntry    *Message               `json:"logentry,omitempty"`
-	Exception   *ExceptionContainer    `json:"exception,omitempty"`
-	Breadcrumbs *BreadcrumbContainer   `json:"breadcrumbs,omitempty"`
-	Threads     json.RawMessage        `json:"threads,omitempty"`
-	Request     *Request               `json:"request,omitempty"`
-	User        *User                  `json:"user,omitempty"`
-	SDK         *SDK                   `json:"sdk,omitempty"`
-	Contexts    map[string]interface{} `json:"contexts,omitempty"`
-	Tags        TagSet                 `json:"tags,omitempty"`
-	Extra       map[string]interface{} `json:"extra,omitempty"`
-	Fingerprint []string               `json:"fingerprint,omitempty"`
-	Modules     map[string]string      `json:"modules,omitempty"`
+	Message     *Message             `json:"message,omitempty"`
+	LogEntry    *Message             `json:"logentry,omitempty"`
+	Exception   *ExceptionContainer  `json:"exception,omitempty"`
+	Breadcrumbs *BreadcrumbContainer `json:"breadcrumbs,omitempty"`
+	Threads     json.RawMessage      `json:"threads,omitempty"`
+	Request     *Request             `json:"request,omitempty"`
+	User        *User                `json:"user,omitempty"`
+	SDK         *SDK                 `json:"sdk,omitempty"`
+	Contexts    map[string]any       `json:"contexts,omitempty"`
+	Tags        TagSet               `json:"tags,omitempty"`
+	Extra       map[string]any       `json:"extra,omitempty"`
+	Fingerprint []string             `json:"fingerprint,omitempty"`
+	Modules     map[string]string    `json:"modules,omitempty"`
 }
 
 // Message is the "message" field, which Sentry SDKs send either as a plain
 // string (older format) or a structured object (newer format).
 type Message struct {
-	Formatted string   `json:"formatted,omitempty"`
-	Message   string   `json:"message,omitempty"`
-	Params    []string `json:"params,omitempty"`
+	Formatted string `json:"formatted,omitempty"`
+	Message   string `json:"message,omitempty"`
+	Params    []any  `json:"params,omitempty"`
 }
 
 // UnmarshalJSON accepts either a bare JSON string or a {"formatted": ...} object.
@@ -162,8 +164,6 @@ type Breadcrumb struct {
 }
 
 // Time parses the breadcrumb's timestamp, which Sentry SDKs send as either
-// an RFC3339 string or a float of seconds since the epoch. The zero Time is
-// returned if it's absent or unparseable.
 func (crumb *Breadcrumb) Time() time.Time {
 	if crumb == nil || len(crumb.Timestamp) == 0 {
 		return time.Time{}
@@ -179,6 +179,46 @@ func (crumb *Breadcrumb) Time() time.Time {
 		return time.Unix(0, int64(floatTimestamp*float64(time.Second)))
 	}
 	return time.Time{}
+}
+
+func (c *ExceptionContainer) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	// Case 1: Bare array format `[{...}, {...}]`
+	var list []Exception
+	if err := json.Unmarshal(data, &list); err == nil {
+		c.Values = list
+		return nil
+	}
+	// Case 2: Object format `{"values": [...]}`
+	type containerAlias ExceptionContainer
+	var obj containerAlias
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	*c = ExceptionContainer(obj)
+	return nil
+}
+
+func (c *BreadcrumbContainer) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	// Case 1: Bare array format `[{...}, {...}]`
+	var list []Breadcrumb
+	if err := json.Unmarshal(data, &list); err == nil {
+		c.Values = list
+		return nil
+	}
+	// Case 2: Object format `{"values": [...]}`
+	type containerAlias BreadcrumbContainer
+	var obj containerAlias
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	*c = BreadcrumbContainer(obj)
+	return nil
 }
 
 type Request struct {
@@ -216,8 +256,22 @@ func (event *Event) GroupKey() string {
 	if event.Exception != nil && len(event.Exception.Values) > 0 {
 		lastException := event.Exception.Values[len(event.Exception.Values)-1]
 		if lastException.Stacktrace != nil && len(lastException.Stacktrace.Frames) > 0 {
-			lastFrame := lastException.Stacktrace.Frames[len(lastException.Stacktrace.Frames)-1]
-			return fmt.Sprintf("exc:%s\x00%s\x00%s", lastException.Type, lastFrame.Module, lastFrame.Function)
+			frames := lastException.Stacktrace.Frames
+
+			// Look for the innermost in_app frame (from bottom up)
+			var targetFrame *Frame
+			for i := len(frames) - 1; i >= 0; i-- {
+				if frames[i].InApp {
+					targetFrame = &frames[i]
+					break
+				}
+			}
+			// Fallback to the absolute last frame if no in_app frame exists
+			if targetFrame == nil {
+				targetFrame = &frames[len(frames)-1]
+			}
+
+			return fmt.Sprintf("exc:%s\x00%s\x00%s", lastException.Type, targetFrame.Module, targetFrame.Function)
 		}
 		return fmt.Sprintf("exc:%s\x00%s", lastException.Type, lastException.Value)
 	}
@@ -227,5 +281,25 @@ func (event *Event) GroupKey() string {
 	if event.Transaction != "" {
 		return "txn:" + event.Transaction
 	}
+	if event.Culprit != "" {
+		return "culprit:" + event.Culprit
+	}
 	return ""
+}
+
+func (event *Event) Time() time.Time {
+	if event == nil || len(event.Timestamp) == 0 {
+		return time.Time{}
+	}
+	var timestampStr string
+	if err := json.Unmarshal(event.Timestamp, &timestampStr); err == nil {
+		if t, err := time.Parse(time.RFC3339Nano, timestampStr); err == nil {
+			return t
+		}
+		return time.Time{}
+	}
+	if floatTimestamp, err := strconv.ParseFloat(string(event.Timestamp), 64); err == nil {
+		return time.Unix(0, int64(floatTimestamp*float64(time.Second)))
+	}
+	return time.Time{}
 }

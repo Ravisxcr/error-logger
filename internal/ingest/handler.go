@@ -36,9 +36,28 @@ type Handler struct {
 // RegisterRoutes wires the ingestion endpoints onto mux.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/{project_id}/envelope/", h.handleEnvelope)
+	mux.HandleFunc("POST /api/{project_id}/envelope", h.handleEnvelope)
+	mux.HandleFunc("OPTIONS /api/{project_id}/envelope/", h.handleOptions)
+	mux.HandleFunc("OPTIONS /api/{project_id}/envelope", h.handleOptions)
+
 	mux.HandleFunc("POST /api/{project_id}/store/", h.handleStore)
+	mux.HandleFunc("POST /api/{project_id}/store", h.handleStore)
+	mux.HandleFunc("OPTIONS /api/{project_id}/store/", h.handleOptions)
+	mux.HandleFunc("OPTIONS /api/{project_id}/store", h.handleOptions)
+
 	mux.HandleFunc("POST /api/{project_id}/security/", h.handleIgnore)
+	mux.HandleFunc("POST /api/{project_id}/security", h.handleIgnore)
 	mux.HandleFunc("POST /api/{project_id}/minidump/", h.handleIgnore)
+	mux.HandleFunc("POST /api/{project_id}/minidump", h.handleIgnore)
+	mux.HandleFunc("POST /api/{project_id}/user-feedback/", h.handleIgnore)
+	mux.HandleFunc("POST /api/{project_id}/user-feedback", h.handleIgnore)
+}
+
+func (h *Handler) handleOptions(responseWriter http.ResponseWriter, request *http.Request) {
+	responseWriter.Header().Set("Access-Control-Allow-Origin", "*")
+	responseWriter.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
+	responseWriter.Header().Set("Access-Control-Allow-Headers", "*")
+	responseWriter.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) handleEnvelope(responseWriter http.ResponseWriter, request *http.Request) {
@@ -172,6 +191,9 @@ func readBody(reader io.Reader, gzipped bool) ([]byte, error) {
 }
 
 func writeAck(responseWriter http.ResponseWriter, eventID string) {
+	responseWriter.Header().Set("Access-Control-Allow-Origin", "*")
+	responseWriter.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
+	responseWriter.Header().Set("Access-Control-Allow-Headers", "*")
 	responseWriter.Header().Set("Content-Type", "application/json")
 	responseWriter.WriteHeader(http.StatusOK)
 	if eventID == "" {

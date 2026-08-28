@@ -20,6 +20,24 @@
   --debug: #9ca3af;
   --debug-soft: rgba(156, 163, 175, 0.14);
 
+  --json-key: #93c5fd;
+  --json-string: #86efac;
+  --json-number: #fdba74;
+  --json-boolean: #67e8f9;
+  --json-null: #fca5a5;
+  --json-punct: #64748b;
+
+  --tok-keyword: #c084fc;
+  --tok-string: #86efac;
+  --tok-number: #fdba74;
+  --tok-comment: #6b7280;
+  --tok-fn: #93c5fd;
+  --tok-builtin: #f472b6;
+  --tok-type: #38bdf8;
+  --tok-annotation: #f472b6;
+  --tok-var: #fbbf24;
+  --tok-op: #94a3b8;
+
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
@@ -51,6 +69,24 @@
   --info-soft: rgba(3, 105, 161, 0.09);
   --debug: #6b7280;
   --debug-soft: rgba(107, 114, 128, 0.1);
+
+  --json-key: #2563eb;
+  --json-string: #16a34a;
+  --json-number: #ea580c;
+  --json-boolean: #0284c7;
+  --json-null: #dc2626;
+  --json-punct: #94a3b8;
+
+  --tok-keyword: #9333ea;
+  --tok-string: #15803d;
+  --tok-number: #c2410c;
+  --tok-comment: #9ca3af;
+  --tok-fn: #1d4ed8;
+  --tok-builtin: #db2777;
+  --tok-type: #0284c7;
+  --tok-annotation: #be185d;
+  --tok-var: #b45309;
+  --tok-op: #64748b;
 
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --shadow-md: 0 8px 24px -8px rgba(15, 23, 42, 0.16);
@@ -144,6 +180,79 @@ a:hover {
 .row-link:hover {
   color: var(--accent);
   text-decoration: none;
+}
+
+.project-link,
+.issue-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-link .icon {
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+.issue-link .icon {
+  color: var(--muted);
+  opacity: 0.85;
+}
+.issue-link:hover .icon {
+  color: var(--accent);
+}
+
+.th-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.th-content .icon {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.meta-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meta-time .icon {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.kind-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.kind-pill .icon {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.stat-issues {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.stat-events {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 /* ---------- Tables ---------- */
@@ -268,13 +377,20 @@ tbody tr:hover td {
 /* ---------- Badges / pills ---------- */
 
 .badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 9px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.badge .icon {
+  width: 12px;
+  height: 12px;
 }
 
 .level-error,
@@ -311,15 +427,37 @@ tbody tr:hover td {
   text-transform: none;
 }
 
+.badge.count .icon {
+  width: 12px;
+  height: 12px;
+}
+
 .pill {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 2px 10px;
+  padding: 3px 9px;
   margin: 0 6px 6px 0;
-  font-size: 11px;
+  font-size: 11.5px;
+  line-height: 1.2;
   color: var(--muted);
+  vertical-align: middle;
+}
+
+.pill .icon {
+  width: 13px;
+  height: 13px;
+  opacity: 0.85;
+  display: block;
+}
+
+.pill span {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
 }
 
 .pill-bad {
@@ -343,6 +481,17 @@ tbody tr:hover td {
 .pill-row {
   display: flex;
   flex-wrap: wrap;
+}
+
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.meta-item .icon {
+  color: var(--muted);
+  opacity: 0.7;
 }
 
 /* ---------- Empty state ---------- */
@@ -376,9 +525,30 @@ tbody tr:hover td {
 /* ---------- Buttons ---------- */
 
 .icon {
-  display: inline-block;
+  display: block;
   vertical-align: middle;
   flex: 0 0 auto;
+}
+
+.icon-brand {
+  display: block;
+  vertical-align: middle;
+  flex: 0 0 auto;
+  opacity: 1 !important;
+}
+
+.pill .icon,
+.pill .icon-brand {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+
+.issue-link .icon,
+.issue-link .icon-brand {
+  width: 15px;
+  height: 15px;
+  display: block;
 }
 
 .theme-toggle,
@@ -554,6 +724,14 @@ tbody tr:hover td {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.section-title .icon {
+  color: var(--muted);
+  opacity: 0.8;
 }
 
 .meta-line {
@@ -636,25 +814,33 @@ tbody tr:hover td {
 .code-line {
   display: flex;
   white-space: pre;
+  transition: background-color 100ms ease;
+}
+
+.code-line:hover {
+  background: var(--panel-2);
 }
 
 .code-line .ln {
   flex: 0 0 auto;
   width: 3.5em;
   text-align: right;
-  padding: 1px 10px;
+  padding: 2px 10px;
   color: var(--muted);
   user-select: none;
   border-right: 1px solid var(--border);
+  font-size: 11.5px;
 }
 
 .code-line .src {
-  padding: 1px 10px;
-  color: var(--muted);
+  padding: 2px 12px;
+  color: var(--text);
+  line-height: 1.5;
 }
 
 .code-line.current {
   background: var(--error-soft);
+  box-shadow: inset 3px 0 0 var(--error);
 }
 
 .code-line.current .src {
@@ -663,6 +849,87 @@ tbody tr:hover td {
 }
 
 .code-line.current .ln {
+  color: var(--error);
+  font-weight: 700;
+}
+
+/* Code Syntax Tokens (Prism.js) */
+.token.keyword,
+.token.atrule {
+  color: var(--tok-keyword);
+  font-weight: 600;
+}
+
+.token.string,
+.token.char,
+.token.string-interpolation,
+.token.attr-value {
+  color: var(--tok-string);
+}
+
+.token.number {
+  color: var(--tok-number);
+}
+
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: var(--tok-comment);
+  font-style: italic;
+}
+
+.token.function,
+.token.class-name {
+  color: var(--tok-fn);
+}
+
+.token.builtin,
+.token.constant {
+  color: var(--tok-builtin);
+  font-weight: 600;
+}
+
+.token.type,
+.token.namespace {
+  color: var(--tok-type);
+}
+
+.token.annotation,
+.token.decorator {
+  color: var(--tok-annotation);
+  font-style: italic;
+}
+
+.token.variable,
+.token.parameter,
+.token.regex,
+.token.important,
+.token.attr-name {
+  color: var(--tok-var);
+}
+
+.token.operator,
+.token.punctuation,
+.token.entity,
+.token.url {
+  color: var(--tok-op);
+}
+
+.token.boolean {
+  color: var(--tok-builtin);
+  font-weight: 600;
+}
+
+.token.tag {
+  color: var(--tok-keyword);
+}
+
+.token.inserted {
+  color: var(--tok-string);
+}
+
+.token.deleted {
   color: var(--error);
 }
 
@@ -744,6 +1011,21 @@ details summary:hover {
   color: var(--text);
 }
 
+.summary-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.summary-content .icon-chevron-right {
+  transition: transform 150ms ease;
+  opacity: 0.6;
+}
+
+details[open] > summary .icon-chevron-right {
+  transform: rotate(90deg);
+}
+
 .vars summary {
   color: var(--muted);
   font-size: 12px;
@@ -751,6 +1033,10 @@ details summary:hover {
 
 .modules-summary {
   display: inline-block;
+  margin-bottom: 8px;
+}
+
+.json-summary {
   margin-bottom: 8px;
 }
 
@@ -781,7 +1067,7 @@ table.kv td.v {
   word-break: break-word;
 }
 
-/* ---------- Raw JSON ---------- */
+/* ---------- Raw JSON & Syntax Highlighting ---------- */
 
 .code-block {
   position: relative;
@@ -790,8 +1076,9 @@ table.kv td.v {
 
 .code-toolbar {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
 }
 
 pre.raw {
@@ -806,4 +1093,52 @@ pre.raw {
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--muted);
+}
+
+pre.json-view {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre;
+  word-break: normal;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text);
+  tab-size: 2;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* ---------- Raw JSON & Syntax Highlighting (Prism.js) ---------- */
+.json-view .token.property {
+  color: var(--json-key);
+  font-weight: 600;
+}
+
+.json-view .token.string {
+  color: var(--json-string);
+}
+
+.json-view .token.number {
+  color: var(--json-number);
+}
+
+.json-view .token.boolean {
+  color: var(--json-boolean);
+  font-weight: 600;
+}
+
+.json-view .token.null,
+.json-view .token.null.keyword {
+  color: var(--json-null);
+  font-weight: 600;
+  font-style: italic;
+}
+
+.json-view .token.punctuation,
+.json-view .token.operator {
+  color: var(--json-punct);
 }

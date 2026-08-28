@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"net/url"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -73,6 +75,7 @@ type eventRow struct {
 	Level     string
 	ProjectID string
 	Kind      string
+	Platform  string
 	Summary   string
 	Count     int
 }
@@ -92,6 +95,7 @@ type frameView struct {
 	Function string
 	Module   string
 	Location string
+	Language string
 	InApp    bool
 	Lines    []codeLine
 	Vars     []kv
@@ -129,6 +133,9 @@ type detailView struct {
 	ServerName  string
 	Platform    string
 	SDK         string
+	OS          string
+	Runtime     string
+	Browser     string
 
 	Exceptions  []exceptionView
 	Message     string
@@ -252,7 +259,7 @@ func (h *Handler) handleDeleteEvent(writer http.ResponseWriter, request *http.Re
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(writer, request, "/projects/"+capturedEvent.ProjectID, http.StatusSeeOther)
+	http.Redirect(writer, request, "/projects/"+url.PathEscape(capturedEvent.ProjectID), http.StatusSeeOther)
 }
 
 // handleDeleteProject deletes every captured row for a project and returns
@@ -281,7 +288,7 @@ func (h *Handler) handleDeleteEvents(writer http.ResponseWriter, request *http.R
 			return
 		}
 	}
-	http.Redirect(writer, request, "/projects/"+projectID, http.StatusSeeOther)
+	http.Redirect(writer, request, "/projects/"+url.PathEscape(projectID), http.StatusSeeOther)
 }
 
 // handleDeleteProjects deletes a checked selection of projects (the
@@ -325,6 +332,9 @@ func buildDetailView(capturedEvent store.Captured) detailView {
 	if eventData.SDK != nil {
 		detailViewData.SDK = strings.TrimSpace(eventData.SDK.Name + " " + eventData.SDK.Version)
 	}
+	detailViewData.OS = extractContextSummary(eventData.Contexts, "os")
+	detailViewData.Runtime = extractContextSummary(eventData.Contexts, "runtime")
+	detailViewData.Browser = extractContextSummary(eventData.Contexts, "browser")
 	detailViewData.Tags = eventData.Tags
 
 	detailViewData.Exceptions = buildExceptions(eventData)
@@ -364,7 +374,7 @@ func buildExceptions(eventData *sentryevent.Event) []exceptionView {
 		}
 		if exceptionVal.Stacktrace != nil {
 			for _, frameVal := range exceptionVal.Stacktrace.Frames {
-				exceptionViewData.Frames = append(exceptionViewData.Frames, buildFrame(frameVal))
+				exceptionViewData.Frames = append(exceptionViewData.Frames, buildFrame(frameVal, eventData.Platform))
 			}
 		}
 		exceptionsList = append(exceptionsList, exceptionViewData)
@@ -413,8 +423,17 @@ func buildRequest(eventData *sentryevent.Event) []kv {
 func buildContexts(eventData *sentryevent.Event) []contextGroup {
 	var contextGroupsList []contextGroup
 	for _, name := range sortedKeys(eventData.Contexts) {
-		if contextMap, ok := eventData.Contexts[name].(map[string]interface{}); ok {
+		val := eventData.Contexts[name]
+		if val == nil {
+			continue
+		}
+		if contextMap, ok := val.(map[string]any); ok {
 			contextGroupsList = append(contextGroupsList, contextGroup{Name: name, Fields: toKV(contextMap)})
+		} else if b, err := json.Marshal(val); err == nil {
+			var m map[string]any
+			if err := json.Unmarshal(b, &m); err == nil {
+				contextGroupsList = append(contextGroupsList, contextGroup{Name: name, Fields: toKV(m)})
+			}
 		}
 	}
 	return contextGroupsList
@@ -436,7 +455,7 @@ func buildModules(eventData *sentryevent.Event) []kv {
 	return modulesList
 }
 
-func buildFrame(frameData sentryevent.Frame) frameView {
+func buildFrame(frameData sentryevent.Frame, platform string) frameView {
 	locationPath := frameData.Filename
 	if locationPath == "" {
 		locationPath = frameData.AbsPath
@@ -450,17 +469,25 @@ func buildFrame(frameData sentryevent.Frame) frameView {
 		Function: orUnknown(frameData.Function),
 		Module:   frameData.Module,
 		Location: location,
+		Language: detectLanguage(locationPath, platform),
 		InApp:    frameData.InApp,
 	}
 
 	if frameData.ContextLine != "" || len(frameData.PreContext) > 0 || len(frameData.PostContext) > 0 {
-		start := frameData.Lineno - len(frameData.PreContext)
-		for lineIndex, contextText := range frameData.PreContext {
-			frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: start + lineIndex, Text: contextText})
-		}
-		frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno, Text: frameData.ContextLine, Current: true})
-		for lineIndex, contextText := range frameData.PostContext {
-			frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno + 1 + lineIndex, Text: contextText})
+		if frameData.Lineno > 0 {
+			start := frameData.Lineno - len(frameData.PreContext)
+			if start < 1 {
+				start = 1
+			}
+			for lineIndex, contextText := range frameData.PreContext {
+				frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: start + lineIndex, Text: contextText})
+			}
+			frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno, Text: frameData.ContextLine, Current: true})
+			for lineIndex, contextText := range frameData.PostContext {
+				frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: frameData.Lineno + 1 + lineIndex, Text: contextText})
+			}
+		} else if frameData.ContextLine != "" {
+			frameViewData.Lines = append(frameViewData.Lines, codeLine{Num: 0, Text: frameData.ContextLine, Current: true})
 		}
 	}
 
@@ -472,6 +499,75 @@ func buildFrame(frameData sentryevent.Frame) frameView {
 	}
 
 	return frameViewData
+}
+
+func detectLanguage(filename string, platform string) string {
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".py", ".pyw":
+		return "python"
+	case ".js", ".mjs", ".cjs", ".jsx":
+		return "javascript"
+	case ".ts", ".tsx", ".mts", ".cts":
+		return "typescript"
+	case ".go":
+		return "go"
+	case ".rs":
+		return "rust"
+	case ".java":
+		return "java"
+	case ".kt", ".kts":
+		return "kotlin"
+	case ".cs":
+		return "csharp"
+	case ".php":
+		return "php"
+	case ".rb":
+		return "ruby"
+	case ".c", ".h", ".cpp", ".hpp", ".cc", ".cxx":
+		return "cpp"
+	case ".swift":
+		return "swift"
+	case ".sh", ".bash", ".zsh":
+		return "shell"
+	case ".sql":
+		return "sql"
+	case ".html", ".htm":
+		return "html"
+	case ".css", ".scss", ".sass", ".less":
+		return "css"
+	case ".json":
+		return "json"
+	case ".yaml", ".yml":
+		return "yaml"
+	default:
+		switch strings.ToLower(platform) {
+		case "python":
+			return "python"
+		case "node", "javascript":
+			return "javascript"
+		case "go", "golang":
+			return "go"
+		case "ruby":
+			return "ruby"
+		case "php":
+			return "php"
+		case "java":
+			return "java"
+		case "csharp", "dotnet":
+			return "csharp"
+		case "rust":
+			return "rust"
+		case "kotlin":
+			return "kotlin"
+		case "swift", "apple", "cocoa":
+			return "swift"
+		case "elixir":
+			return "elixir"
+		default:
+			return strings.ToLower(platform)
+		}
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -537,6 +633,11 @@ func summarize(capturedEvent store.Captured) eventRow {
 		return row
 	}
 
+	row.Platform = capturedEvent.Event.Platform
+	if row.Platform == "" {
+		row.Platform = extractContextSummary(capturedEvent.Event.Contexts, "runtime")
+	}
+
 	if capturedEvent.Event.Level != "" {
 		row.Level = strings.ToLower(capturedEvent.Event.Level)
 	} else if capturedEvent.Kind == "event" {
@@ -544,9 +645,17 @@ func summarize(capturedEvent store.Captured) eventRow {
 	}
 
 	switch {
-	case capturedEvent.Event.Exception != nil && len(capturedEvent.Event.Exception.Values) > 0:
-		exceptionVal := capturedEvent.Event.Exception.Values[len(capturedEvent.Event.Exception.Values)-1]
-		row.Summary = fmt.Sprintf("%s: %s", exceptionVal.Type, exceptionVal.Value)
+		case capturedEvent.Event.Exception != nil && len(capturedEvent.Event.Exception.Values) > 0:
+	    exceptionVal := capturedEvent.Event.Exception.Values[len(capturedEvent.Event.Exception.Values)-1]
+	    if exceptionVal.Type != "" && exceptionVal.Value != "" {
+	        row.Summary = fmt.Sprintf("%s: %s", exceptionVal.Type, exceptionVal.Value)
+	    } else if exceptionVal.Type != "" {
+	        row.Summary = exceptionVal.Type
+	    } else if exceptionVal.Value != "" {
+	        row.Summary = exceptionVal.Value
+	    } else {
+	        row.Summary = "<unhandled exception>"
+	    }
 	case capturedEvent.Event.MessageText() != "":
 		row.Summary = capturedEvent.Event.MessageText()
 	case capturedEvent.Event.Transaction != "":
@@ -569,3 +678,41 @@ func orUnknown(inputStr string) string {
 	}
 	return inputStr
 }
+
+func extractContextSummary(contexts map[string]any, group string) string {
+	if len(contexts) == 0 {
+		return ""
+	}
+	val, ok := contexts[group]
+	if !ok || val == nil {
+		return ""
+	}
+
+	var m map[string]any
+	if directMap, ok := val.(map[string]any); ok {
+		m = directMap
+	} else if b, err := json.Marshal(val); err == nil {
+		_ = json.Unmarshal(b, &m)
+	}
+	if len(m) == 0 {
+		return ""
+	}
+
+	name := stringify(m["name"])
+	if name == "" || name == "null" {
+		name = stringify(m["family"])
+	}
+	if name == "" || name == "null" {
+		return ""
+	}
+
+	version := stringify(m["version"])
+	if version != "" && version != "null" {
+		if strings.HasPrefix(strings.ToLower(version), strings.ToLower(name)) {
+			return version
+		}
+		return name + " " + version
+	}
+	return name
+}
+

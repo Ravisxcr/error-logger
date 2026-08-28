@@ -1,10 +1,12 @@
-import sentry_sdk
+import logging
+
+logger = logging.getLogger(__name__)
 
 def divide():
     try:
         1 / 0
     except ZeroDivisionError:
-        sentry_sdk.capture_exception()
+        logger.exception("Division failed inside divide()")
 
     # An unhandled exception, captured automatically as the process exits.
     raise FileExistsError("This is a demo exception!")
