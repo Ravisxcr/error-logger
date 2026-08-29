@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,8 +72,12 @@ func TestWebRendering(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET / returned status %d: %s", rec.Code, rec.Body.String())
 	}
-	if body := rec.Body.String(); len(body) == 0 {
+	projectsBody := rec.Body.String()
+	if len(projectsBody) == 0 {
 		t.Fatalf("GET / returned empty body")
+	}
+	if !strings.Contains(projectsBody, "col-project") {
+		t.Errorf("expected GET / to contain col-project class")
 	}
 
 	// Test GET /projects/proj-1
@@ -81,6 +86,13 @@ func TestWebRendering(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET /projects/proj-1 returned status %d: %s", rec.Code, rec.Body.String())
+	}
+	listBody := rec.Body.String()
+	if !strings.Contains(listBody, "col-summary") {
+		t.Errorf("expected GET /projects/proj-1 to contain col-summary class")
+	}
+	if !strings.Contains(listBody, "title=\"ValueError: Invalid value provided\"") {
+		t.Errorf("expected GET /projects/proj-1 to contain title tooltip attribute on issue-link")
 	}
 
 	// Test GET /events/{id}

@@ -12,10 +12,10 @@
 		<thead>
 		<tr>
 			{{if not $.DisableDelete}}<th class="col-select"><input type="checkbox" data-select-all="projects" aria-label="Select all projects"></th>{{end}}
-			<th><span class="th-content">{{template "icon-folder"}}<span>Project</span></span></th>
-			<th><span class="th-content">{{template "icon-bug"}}<span>Issues</span></span></th>
-			<th><span class="th-content">{{template "icon-activity"}}<span>Events</span></span></th>
-			<th><span class="th-content">{{template "icon-clock"}}<span>Last seen</span></span></th>
+			<th class="col-project"><span class="th-content">{{template "icon-folder"}}<span>Project</span></span></th>
+			<th class="col-stat"><span class="th-content">{{template "icon-bug"}}<span>Issues</span></span></th>
+			<th class="col-stat"><span class="th-content">{{template "icon-activity"}}<span>Events</span></span></th>
+			<th class="col-time"><span class="th-content">{{template "icon-clock"}}<span>Last seen</span></span></th>
 			{{if not $.DisableDelete}}<th class="col-actions"></th>{{end}}
 		</tr>
 		</thead>
@@ -23,10 +23,10 @@
 		{{range .Projects}}
 		<tr>
 			{{if not $.DisableDelete}}<td class="col-select"><input type="checkbox" class="row-select" data-scope="projects" form="bulk-delete-projects-form" name="ids" value="{{.ProjectID}}" aria-label="Select project"></td>{{end}}
-			<td><a class="row-link project-link" href="/projects/{{.ProjectID}}">{{template "icon-folder"}}<span>{{.ProjectID}}</span></a></td>
-			<td><span class="stat-pill stat-issues">{{template "icon-bug"}}<span>{{.Issues}}</span></span></td>
-			<td><span class="stat-pill stat-events">{{template "icon-activity"}}<span>{{.Events}}</span></span></td>
-			<td class="text-muted"><span class="meta-time">{{template "icon-clock"}}<span>{{.LastSeen}}</span></span></td>
+			<td class="col-project"><a class="row-link project-link" href="/projects/{{.ProjectID}}" title="{{.ProjectID}}">{{template "icon-folder"}}<span>{{.ProjectID}}</span></a></td>
+			<td class="col-stat"><span class="stat-pill stat-issues">{{template "icon-bug"}}<span>{{.Issues}}</span></span></td>
+			<td class="col-stat"><span class="stat-pill stat-events">{{template "icon-activity"}}<span>{{.Events}}</span></span></td>
+			<td class="col-time text-muted"><span class="meta-time">{{template "icon-clock"}}<span>{{.LastSeen}}</span></span></td>
 			{{if not $.DisableDelete}}
 			<td class="col-actions">
 				<form class="delete-form" method="post" action="/projects/{{.ProjectID}}/delete" data-confirm="Delete project {{.ProjectID}} and all its captured events?">

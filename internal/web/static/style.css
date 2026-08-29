@@ -187,6 +187,18 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.project-link span,
+.issue-link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  display: block;
 }
 
 .project-link .icon {
@@ -265,24 +277,24 @@ a:hover {
   box-shadow: var(--shadow-sm);
 }
 
-table {
+.table-card table {
   width: 100%;
   border-collapse: collapse;
 }
 
-th,
-td {
+.table-card th,
+.table-card td {
   text-align: left;
   padding: 11px 20px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
 
-thead tr {
+.table-card thead tr {
   background: var(--panel-2);
 }
 
-th {
+.table-card th {
   color: var(--muted);
   font-weight: 600;
   font-size: 11px;
@@ -290,26 +302,46 @@ th {
   letter-spacing: 0.06em;
 }
 
-tbody tr {
+.table-card tbody tr {
+  height: 44px;
+  max-height: 48px;
   transition: background-color 120ms ease;
 }
 
-tbody tr:last-child td {
+.table-card tbody tr:last-child td {
   border-bottom: none;
 }
 
-tbody tr:hover td {
+.table-card tbody tr:hover td {
   background: var(--panel-2);
 }
 
 .col-actions {
   width: 1%;
   text-align: right;
+  white-space: nowrap;
 }
 
 .col-select {
   width: 1%;
   padding-right: 4px;
+  white-space: nowrap;
+}
+
+.col-time,
+.col-level,
+.col-kind,
+.col-seen,
+.col-stat {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.col-summary,
+.col-project {
+  width: 100%;
+  max-width: 0;
+  overflow: hidden;
 }
 
 .col-select input[type="checkbox"],

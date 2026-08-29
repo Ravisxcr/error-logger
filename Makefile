@@ -1,4 +1,4 @@
-.PHONY: all build run test vet fmt docker-build docker-tag docker-push docker-release docker-up docker-down docker-logs test-sdks test-python test-node test-go clean help
+.PHONY: all build run test vet fmt docker-build docker-tag docker-push docker-release up down docker-logs test-sdks test-python test-node test-go clean help
 
 BIN_DIR := bin
 BINARY := $(BIN_DIR)/error-logger
@@ -66,12 +66,12 @@ docker-release:
 		-t $(IMAGE):latest \
 		--push .
 
-## docker-up: Start error-logger in background with Docker Compose
-docker-up:
+## up: Start error-logger in background with Docker Compose
+up:
 	docker compose up --build
 
-## docker-down: Stop and remove Docker Compose containers
-docker-down:
+## down: Stop and remove Docker Compose containers
+ddown:
 	docker compose down
 
 
