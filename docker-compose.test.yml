@@ -7,7 +7,7 @@ services:
     volumes:
       - ./data:/app/data
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9000/ || exit 1"]
+      test: ["CMD", "/app/error-logger", "-healthcheck"]
       interval: 2s
       timeout: 2s
       retries: 5

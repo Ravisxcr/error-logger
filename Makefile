@@ -68,10 +68,11 @@ docker-release:
 
 ## up: Start error-logger in background with Docker Compose
 up:
+	@mkdir -p $(DATA_DIR) && chmod 777 $(DATA_DIR) 2>/dev/null || true
 	docker compose up --build
 
 ## down: Stop and remove Docker Compose containers
-ddown:
+down:
 	docker compose down
 
 
