@@ -6,7 +6,7 @@ ARG TARGETARCH
 
 WORKDIR /app
 
-# Cache Go modules layer (invalidated only when go.mod or go.sum changes)
+# Cache Go modules layer
 COPY go.mod go.sum* ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # Copy application source code
 COPY . .
 
-# Compile binary using BuildKit Go compiler cache & module cache mounts for near-instant incremental builds
+# Compile binary using BuildKit Go compiler & module cache mounts
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
@@ -22,11 +22,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -ldflags="-s -w" \
     -o /app/error-logger ./cmd/server
 
-# Run stage: 'scratch' has zero dependencies, NO OpenSSL, and instant build/startup
-FROM scratch
-
-# Root CA certificates (already present in the golang builder image)
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# Run stage: pinned Alpine version with /bin/sh for debugging
+FROM alpine:3.21
 
 WORKDIR /app
 
