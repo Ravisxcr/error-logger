@@ -83,6 +83,7 @@ test-sdks:
 
 ## test-python: Run Python SDK demo client locally against running server
 test-python:
+	cd demo && uv sync
 	@if [ -d "demo/.venv" ]; then \
 		. demo/.venv/bin/activate && python3 demo/main.py; \
 	else \
